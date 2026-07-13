@@ -14,7 +14,7 @@ services:
     autoDeploy: true
     envVars:
       - key: PYTHON_VERSION
-        value: "3.11"
+        value: "3.11.9"
       - key: PYTHONUNBUFFERED
         value: "1"
       - key: PYTHONDONTWRITEBYTECODE
@@ -51,7 +51,7 @@ services:
     startCommand: "celery -A api.queue worker --loglevel=info --concurrency=1"
     envVars:
       - key: PYTHON_VERSION
-        value: "3.11"
+        value: "3.11.9"
 
 # ─── Databases (create separately in Render Dashboard) ───────────────────────
 # PostgreSQL: render create postgres --name legal-rag-db --plan free
