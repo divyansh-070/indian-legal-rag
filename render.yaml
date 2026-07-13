@@ -1,0 +1,64 @@
+# Render Deployment Configuration
+# https://render.com/docs/render-yaml
+
+services:
+  # ─── Backend API Service ───────────────────────────────────────────────────
+  - type: web
+    name: indian-legal-rag-api
+    runtime: python
+    plan: free
+    region: oregon
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn api.main:app --host 0.0.0.0 --port $PORT --workers 1"
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: PYTHONDONTWRITEBYTECODE
+        value: "1"
+      - key: API_DEBUG
+        value: "false"
+      - key: LOG_LEVEL
+        value: "INFO"
+    # SET THESE IN RENDER DASHBOARD → ENVIRONMENT:
+    # OLLAMA_HOST=https://api.groq.com/openai/v1
+    # OLLAMA_MODEL=llama-3.1-8b-instant
+    # GROQ_API_KEY=your_groq_api_key_here
+    # QDRANT_URL=https://your-cluster.qdrant.io
+    # QDRANT_API_KEY=your_qdrant_api_key_here
+    # NEO4J_URI=neo4j+s://your-instance.aura.neo4j.io
+    # NEO4J_USER=neo4j
+    # NEO4J_PASSWORD=your_neo4j_password_here
+    # NEO4J_DATABASE=neo4j
+    # JWT_SECRET_KEY=your_32_char_secret_key_here
+    # QDRANT_COLLECTION=legal_documents
+    # REDIS_URL=rediss://default:your_token@your-redis.upstash.io:6379
+    # API_HOST=0.0.0.0
+    # API_PORT=10000
+    # REDIS_URL=rediss://default:your_token@your-redis.upstash.io:6379
+    # API_DEBUG=false
+    # LOG_LEVEL=INFO
+
+  # ─── Optional: Background Worker for Ingestion ──────────────────────────────
+  - type: worker
+    name: indian-legal-rag-worker
+    runtime: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "celery -A api.queue worker --loglevel=info --concurrency=1"
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+
+# ─── Databases (create separately in Render Dashboard) ───────────────────────
+# PostgreSQL: render create postgres --name legal-rag-db --plan free
+# Redis: render create redis --name legal-rag-redis --plan free
+
+# Note: For Qdrant and Neo4j, use managed cloud services (free tiers available):
+# - Qdrant Cloud: https://cloud.qdrant.io (1GB free)
+# - Neo4j Aura: https://console.neo4j.io (200k nodes free)
+
+# Frontend is deployed separately to Vercel (see vercel.json)
