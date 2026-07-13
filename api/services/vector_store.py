@@ -1,293 +1,272 @@
 """
-Vector Store Service — Qdrant wrapper for semantic search.
-Handles document embeddings, upsert, and hybrid retrieval.
+Vector Store Service — Pinecone wrapper for semantic search.
+Handles document embeddings, upsert, and hybrid retrieval with Pinecone.
 """
 
 import asyncio
 from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
-from uuid import uuid4
+from datetime import datetime
+import json
 
-from qdrant_client import QdrantClient
-from qdrant_client.models import (
-    Distance,
-    VectorParams,
-    PointStruct,
-    Filter,
-    FieldCondition,
-    MatchValue,
-    SearchRequest,
-    ScoredPoint,
-    PayloadSchemaType,
-)
+from pinecone import Pinecone, ServerlessSpec
+from sentence_transformers import SentenceTransformer
 
 from api.config import settings
-from api.services.llm import llm_service
 
 
 @dataclass
-class SearchResult:
-    """Unified search result."""
+class RetrievedChunk:
+    """A retrieved document chunk with metadata."""
     id: str
+    text: str
     score: float
-    payload: Dict[str, Any]
-    source: str  # "vector" | "keyword"
+    act_name: Optional[str] = None
+    section_number: Optional[str] = None
+    subsection: Optional[str] = None
+    chapter: Optional[str] = None
+    marginal_note: Optional[str] = None
+    doc_type: Optional[str] = None
+    source_url: Optional[str] = None
+    effective_date: Optional[str] = None
+    jurisdiction: str = "India"
+    court: Optional[str] = None
+    citation: Optional[str] = None
+    metadata: Dict[str, Any] = None
+
+    def __post_init__(self):
+        if self.metadata is None:
+            self.metadata = {}
 
 
-class VectorStore:
-    """Async wrapper around Qdrant for legal document storage."""
+class PineconeVectorStore:
+    """Pinecone-based vector store for legal documents."""
     
-    COLLECTION_NAME = "legal_documents"
-    VECTOR_SIZE = 768  # bge-m3 / nomic-embed-text
-    
-    def __init__(
-        self,
-        host: str = None,
-        port: int = None,
-        collection_name: str = None,
-    ):
-        self.host = host or settings.QDRANT_HOST
-        self.port = port or settings.QDRANT_PORT
-        self.collection_name = collection_name or settings.QDRANT_COLLECTION
-        self._client: Optional[QdrantClient] = None
+    def __init__(self):
+        self.pc: Optional[Pinecone] = None
+        self.index = None
+        self.embedding_model: Optional[SentenceTransformer] = None
+        self._connected = False
+        self._embedding_dim = settings.EMBEDDING_DIM
     
     async def connect(self):
-        """Initialize Qdrant client and create collection if needed."""
-        self._client = QdrantClient(host=self.host, port=self.port)
+        """Initialize Pinecone client and index."""
+        if self._connected:
+            return
         
-        # Create collection if not exists
-        collections = self._client.get_collections().collections
-        if not any(c.name == self.collection_name for c in collections):
-            self._client.create_collection(
-                collection_name=self.collection_name,
-                vectors_config=VectorParams(
-                    size=self.VECTOR_SIZE,
-                    distance=Distance.COSINE,
-                ),
-            )
-        
-        # Create payload indexes for filtering
-        indexes = [
-            ("act_name", PayloadSchemaType.KEYWORD),
-            ("section_number", PayloadSchemaType.KEYWORD),
-            ("doc_type", PayloadSchemaType.KEYWORD),
-            ("court", PayloadSchemaType.KEYWORD),
-            ("effective_date", PayloadSchemaType.DATETIME),
-        ]
-        
-        for field_name, field_type in indexes:
-            try:
-                self._client.create_payload_index(
-                    collection_name=self.collection_name,
-                    field_name=field_name,
-                    field_schema=field_type,
+        try:
+            # Initialize Pinecone client
+            self.pc = Pinecone(api_key=settings.PINECONE_API_KEY)
+            
+            # Check if index exists, create if not
+            index_name = settings.PINECONE_INDEX_NAME
+            existing_indexes = [idx.name for idx in self.pc.list_indexes()]
+            
+            if index_name not in existing_indexes:
+                # Create index with serverless spec (free tier compatible)
+                self.pc.create_index(
+                    name=index_name,
+                    dimension=self._embedding_dim,
+                    metric="cosine",
+                    spec=ServerlessSpec(
+                        cloud="aws",
+                        region="us-east-1"
+                    )
                 )
-            except Exception:
-                pass  # May already exist
+                # Wait for index to be ready
+                import time
+                while not self.pc.describe_index(index_name).status["ready"]:
+                    time.sleep(1)
+            
+            # Connect to index
+            self.index = self.pc.Index(index_name)
+            
+            # Initialize embedding model
+            self.embedding_model = SentenceTransformer(settings.EMBEDDING_MODEL)
+            
+            self._connected = True
+            print(f"✅ Pinecone connected: {index_name}")
+            
+        except Exception as e:
+            print(f"❌ Pinecone connection failed: {e}")
+            raise
     
     async def close(self):
-        if self._client:
-            self._client.close()
-            self._client = None
+        """Close connections."""
+        if self.index:
+            self.index.close()
+        self._connected = False
     
-    def _get_client(self) -> QdrantClient:
-        if not self._client:
-            raise RuntimeError("VectorStore not connected. Call connect() first.")
-        return self._client
+    def _embed_texts(self, texts: List[str]) -> List[List[float]]:
+        """Generate embeddings for texts."""
+        if not self.embedding_model:
+            raise RuntimeError("Embedding model not initialized. Call connect() first.")
+        embeddings = self.embedding_model.encode(texts, convert_to_numpy=True)
+        return embeddings.tolist()
     
-    async def upsert_documents(
-        self,
-        documents: List[Dict[str, Any]],
-        batch_size: int = 100,
-    ) -> int:
-        """Upsert documents with embeddings."""
-        client = self._get_client()
-        points = []
+    async def upsert_documents(self, documents: List[Dict[str, Any]]) -> int:
+        """Upsert documents to Pinecone."""
+        if not self._connected:
+            await self.connect()
         
-        for doc in documents:
-            # Generate embedding
-            text_for_embedding = self._build_embedding_text(doc)
-            embedding = await llm_service.embed(text_for_embedding)
+        if not documents:
+            return 0
+        
+        # Prepare vectors
+        texts = [doc["text"] for doc in documents]
+        embeddings = self._embed_texts(texts)
+        
+        vectors = []
+        for i, (doc, embedding) in enumerate(zip(documents, embeddings)):
+            # Prepare metadata (Pinecone requires string/number/bool values)
+            metadata = {
+                "text": doc["text"][:8000],  # Truncate for metadata limit
+                "act_name": doc.get("act_name", "") or "",
+                "section_number": doc.get("section_number", "") or "",
+                "subsection": doc.get("subsection", "") or "",
+                "chapter": doc.get("chapter", "") or "",
+                "marginal_note": doc.get("marginal_note", "") or "",
+                "doc_type": doc.get("doc_type", "") or "",
+                "source_url": doc.get("source_url", "") or "",
+                "effective_date": doc.get("effective_date", "") or "",
+                "jurisdiction": doc.get("jurisdiction", "India") or "India",
+                "court": doc.get("court", "") or "",
+                "citation": doc.get("citation", "") or "",
+                **{k: v for k, v in doc.get("metadata", {}).items() 
+                   if isinstance(v, (str, int, float, bool)) and k != "text"}
+            }
             
-            if not embedding:
-                continue
-            
-            point = PointStruct(
-                id=doc.get("id") or str(uuid4()),
-                vector=embedding,
-                payload={
-                    "text": doc["text"],
-                    "act_name": doc.get("act_name"),
-                    "section_number": doc.get("section_number"),
-                    "subsection": doc.get("subsection"),
-                    "chapter": doc.get("chapter"),
-                    "marginal_note": doc.get("marginal_note"),
-                    "doc_type": doc.get("doc_type", "act"),
-                    "source_url": doc.get("source_url"),
-                    "effective_date": doc.get("effective_date"),
-                    "jurisdiction": doc.get("jurisdiction", "India"),
-                    "court": doc.get("court"),
-                    "citation": doc.get("citation"),
-                    "metadata": doc.get("metadata", {}),
-                },
-            )
-            points.append(point)
+            vectors.append({
+                "id": doc["id"],
+                "values": embedding,
+                "metadata": metadata
+            })
         
-        # Batch upsert
-        for i in range(0, len(points), batch_size):
-            batch = points[i:i + batch_size]
-            client.upsert(collection_name=self.collection_name, points=batch)
+        # Upsert in batches (Pinecone limit: 1000 per request)
+        batch_size = 100
+        total_upserted = 0
         
-        return len(points)
-    
-    def _build_embedding_text(self, doc: Dict[str, Any]) -> str:
-        """Build text for embedding from document fields."""
-        parts = []
-        if doc.get("act_name"):
-            parts.append(f"Act: {doc['act_name']}")
-        if doc.get("section_number"):
-            parts.append(f"Section {doc['section_number']}")
-        if doc.get("subsection"):
-            parts.append(f"Sub-section {doc['subsection']}")
-        if doc.get("chapter"):
-            parts.append(f"Chapter {doc['chapter']}")
-        parts.append(doc["text"])
-        return "\n".join(parts)
+        for i in range(0, len(vectors), batch_size):
+            batch = vectors[i:i + batch_size]
+            self.index.upsert(vectors=batch)
+            total_upserted += len(batch)
+        
+        print(f"✅ Upserted {total_upserted} documents to Pinecone")
+        return total_upserted
     
     async def search(
         self,
         query: str,
-        limit: int = 10,
-        filters: Dict[str, Any] = None,
-        score_threshold: float = 0.55,
-    ) -> List[SearchResult]:
-        """Semantic vector search."""
-        client = self._get_client()
+        top_k: int = 20,
+        filter_dict: Optional[Dict[str, Any]] = None
+    ) -> List[RetrievedChunk]:
+        """Search for similar documents."""
+        if not self._connected:
+            await self.connect()
         
-        # Generate query embedding
-        query_embedding = await llm_service.embed(query)
-        if not query_embedding:
-            return []
+        # Embed query
+        query_embedding = self._embed_texts([query])[0]
         
         # Build filter
-        qdrant_filter = None
-        if filters:
-            conditions = []
-            for key, value in filters.items():
-                if value is not None:
-                    conditions.append(
-                        FieldCondition(key=key, match=MatchValue(value=value))
-                    )
-            if conditions:
-                qdrant_filter = Filter(must=conditions)
+        filter_expr = None
+        if filter_dict:
+            filter_expr = {}
+            for k, v in filter_dict.items():
+                if isinstance(v, list):
+                    filter_expr[k] = {"$in": v}
+                else:
+                    filter_expr[k] = {"$eq": v}
         
         # Search
-        results = client.search(
-            collection_name=self.collection_name,
-            query_vector=query_embedding,
-            query_filter=qdrant_filter,
-            limit=limit,
-            score_threshold=score_threshold,
-            with_payload=True,
+        results = self.index.query(
+            vector=query_embedding,
+            top_k=top_k,
+            filter=filter_expr,
+            include_metadata=True,
+            include_values=False
         )
         
-        return [
-            SearchResult(
-                id=str(r.id),
-                score=r.score,
-                payload=r.payload,
-                source="vector",
-            )
-            for r in results
-        ]
+        # Convert to RetrievedChunk
+        chunks = []
+        for match in results.matches:
+            metadata = match.metadata or {}
+            chunks.append(RetrievedChunk(
+                id=match.id,
+                text=metadata.get("text", ""),
+                score=match.score,
+                act_name=metadata.get("act_name"),
+                section_number=metadata.get("section_number"),
+                subsection=metadata.get("subsection"),
+                chapter=metadata.get("chapter"),
+                marginal_note=metadata.get("marginal_note"),
+                doc_type=metadata.get("doc_type"),
+                source_url=metadata.get("source_url"),
+                effective_date=metadata.get("effective_date"),
+                jurisdiction=metadata.get("jurisdiction", "India"),
+                court=metadata.get("court"),
+                citation=metadata.get("citation"),
+                metadata=metadata
+            ))
+        
+        return chunks
     
-    async def search_by_section(
+    async def get_section(
         self,
         act_name: str,
-        section_number: str,
-        limit: int = 5,
-    ) -> List[SearchResult]:
-        """Exact section lookup."""
-        client = self._get_client()
+        section_number: str
+    ) -> Optional[RetrievedChunk]:
+        """Get specific section by act and section number."""
+        if not self._connected:
+            await self.connect()
         
-        results = client.scroll(
-            collection_name=self.collection_name,
-            scroll_filter=Filter(
-                must=[
-                    FieldCondition(key="act_name", match=MatchValue(value=act_name)),
-                    FieldCondition(key="section_number", match=MatchValue(value=section_number)),
-                ]
-            ),
-            limit=limit,
-            with_payload=True,
-        )[0]
-        
-        return [
-            SearchResult(
-                id=str(r.id),
-                score=1.0,
-                payload=r.payload,
-                source="keyword",
-            )
-            for r in results
-        ]
-    
-    async def get_document(self, doc_id: str) -> Optional[SearchResult]:
-        """Retrieve single document by ID."""
-        client = self._get_client()
-        results = client.retrieve(
-            collection_name=self.collection_name,
-            ids=[doc_id],
-            with_payload=True,
+        # Use filter to find exact section
+        results = self.index.query(
+            vector=[0.0] * self._embedding_dim,  # Dummy vector
+            top_k=1,
+            filter={
+                "act_name": {"$eq": act_name},
+                "section_number": {"$eq": section_number}
+            },
+            include_metadata=True,
+            include_values=False
         )
-        if results:
-            r = results[0]
-            return SearchResult(
-                id=str(r.id),
-                score=1.0,
-                payload=r.payload,
-                source="keyword",
+        
+        if results.matches:
+            match = results.matches[0]
+            metadata = match.metadata or {}
+            return RetrievedChunk(
+                id=match.id,
+                text=metadata.get("text", ""),
+                score=match.score,
+                act_name=metadata.get("act_name"),
+                section_number=metadata.get("section_number"),
+                subsection=metadata.get("subsection"),
+                chapter=metadata.get("chapter"),
+                marginal_note=metadata.get("marginal_note"),
+                doc_type=metadata.get("doc_type"),
+                source_url=metadata.get("source_url"),
+                effective_date=metadata.get("effective_date"),
+                jurisdiction=metadata.get("jurisdiction", "India"),
+                court=metadata.get("court"),
+                citation=metadata.get("citation"),
+                metadata=metadata
             )
         return None
     
-    async def delete_by_filter(self, filters: Dict[str, Any]) -> int:
-        """Delete documents matching filter."""
-        client = self._get_client()
-        conditions = [
-            FieldCondition(key=k, match=MatchValue(value=v))
-            for k, v in filters.items()
-            if v is not None
-        ]
-        if not conditions:
-            return 0
-        
-        result = client.delete(
-            collection_name=self.collection_name,
-            points_selector=Filter(must=conditions),
-        )
-        return result.deleted_count if result else 0
+    async def count(self) -> int:
+        """Get total document count."""
+        if not self._connected:
+            await self.connect()
+        stats = self.index.describe_index_stats()
+        return stats.total_vector_count
     
-    async def count(self, filters: Dict[str, Any] = None) -> int:
-        """Count documents matching filter."""
-        client = self._get_client()
-        
-        qdrant_filter = None
-        if filters:
-            conditions = [
-                FieldCondition(key=k, match=MatchValue(value=v))
-                for k, v in filters.items()
-                if v is not None
-            ]
-            if conditions:
-                qdrant_filter = Filter(must=conditions)
-        
-        result = client.count(
-            collection_name=self.collection_name,
-            count_filter=qdrant_filter,
-            exact=True,
-        )
-        return result.count
+    async def delete_all(self) -> bool:
+        """Delete all vectors (use with caution)."""
+        if not self._connected:
+            await self.connect()
+        self.index.delete(delete_all=True)
+        return True
 
 
 # Global instance
-vector_store = VectorStore()
+vector_store = PineconeVectorStore()
