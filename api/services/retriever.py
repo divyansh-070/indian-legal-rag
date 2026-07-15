@@ -1,5 +1,5 @@
 """
-Hybrid Retriever — Combines Qdrant vector search with Neo4j graph traversal.
+Hybrid Retriever — Combines Pinecone vector search with Neo4j graph traversal.
 Implements reciprocal rank fusion for merging results.
 """
 
@@ -8,7 +8,7 @@ from typing import List, Dict, Any, Optional, Set
 from dataclasses import dataclass
 from collections import defaultdict
 
-from api.services.vector_store import vector_store, SearchResult
+from api.services.vector_store import vector_store, RetrievedChunk
 from api.services.graph_store import graph_store, GraphPath
 from api.config import settings
 from api.services.llm import llm_service
@@ -28,7 +28,7 @@ class RetrievedChunk:
     citation: Optional[str] = None
     court: Optional[str] = None
     metadata: Dict[str, Any] = None
-    
+   
     def __post_init__(self):
         if self.metadata is None:
             self.metadata = {}
@@ -39,7 +39,7 @@ class HybridRetriever:
     Combines vector similarity search with graph-based retrieval.
     Uses Reciprocal Rank Fusion (RRF) for result merging.
     """
-    
+   
     def __init__(
         self,
         top_k_vector: int = 20,
@@ -55,7 +55,7 @@ class HybridRetriever:
         self.rrf_k = rrf_k
         self.vector_weight = vector_weight
         self.graph_weight = graph_weight
-    
+   
     async def retrieve(
         self,
         query: str,
@@ -65,7 +65,7 @@ class HybridRetriever:
     ) -> List[RetrievedChunk]:
         """
         Main retrieval entry point.
-        1. Vector search in Qdrant
+        1. Vector search in Pinecone
         2. Graph traversal in Neo4j (if enabled)
         3. Merge via RRF
         4. Return top-K fused results
@@ -73,46 +73,44 @@ class HybridRetriever:
         # Run vector and graph retrieval in parallel
         vector_task = self._vector_search(query, filters)
         graph_task = self._graph_search(query, graph_hops) if use_graph else asyncio.sleep(0, result=[])
-        
+       
         vector_results, graph_results = await asyncio.gather(vector_task, graph_task)
-        
+       
         # Fuse results
         fused = self._reciprocal_rank_fusion(vector_results, graph_results)
-        
+       
         return fused[:self.top_k_final]
-    
+   
     async def _vector_search(
         self,
         query: str,
         filters: Dict[str, Any] = None,
     ) -> List[RetrievedChunk]:
-        """Semantic vector search via Qdrant."""
+        """Semantic vector search via Pinecone."""
         results = await vector_store.search(
             query=query,
-            limit=self.top_k_vector,
-            filters=filters,
-            score_threshold=0.55,
+            top_k=self.top_k_vector,
+            filter_dict=filters,
         )
-        
+       
         chunks = []
         for r in results:
-            payload = r.payload
             chunks.append(RetrievedChunk(
                 id=r.id,
-                text=payload.get("text", ""),
+                text=r.text,
                 score=r.score,
                 source="vector",
-                act_name=payload.get("act_name"),
-                section_number=payload.get("section_number"),
-                chapter=payload.get("chapter"),
-                doc_type=payload.get("doc_type"),
-                citation=payload.get("citation"),
-                court=payload.get("court"),
-                metadata=payload.get("metadata", {}),
+                act_name=r.act_name,
+                section_number=r.section_number,
+                chapter=r.chapter,
+                doc_type=r.doc_type,
+                citation=r.citation,
+                court=r.court,
+                metadata=r.metadata,
             ))
-        
+       
         return chunks
-    
+   
     async def _graph_search(
         self,
         query: str,
@@ -121,9 +119,9 @@ class HybridRetriever:
         """Graph-based retrieval via Neo4j."""
         # Extract key entities from query
         entities = await self._extract_entities(query)
-        
+       
         graph_chunks = []
-        
+       
         # For each detected entity, traverse graph
         for entity in entities:
             if entity["type"] == "section":
@@ -132,7 +130,7 @@ class HybridRetriever:
                     section_number=entity["section"],
                     max_hops=max_hops,
                 )
-                
+               
                 for path in paths:
                     for node in path.nodes:
                         if node.labels and "Section" in node.labels:
@@ -148,13 +146,13 @@ class HybridRetriever:
                                 doc_type="act",
                                 metadata={"graph_hops": path.length, "path_type": "citation"},
                             ))
-            
+           
             elif entity["type"] == "case_law":
                 interpretations = await graph_store.find_interpretations(
                     act_name=entity.get("act"),
                     section_number=entity.get("section"),
                 )
-                
+               
                 for interp in interpretations:
                     graph_chunks.append(RetrievedChunk(
                         id=interp.get("citation", ""),
@@ -166,7 +164,7 @@ class HybridRetriever:
                         court=interp.get("court"),
                         metadata={"graph_path": "interpretation"},
                     ))
-        
+       
         # Also search for definitions
         definitions = await graph_store.find_definitions_for_term(query)
         for defn in definitions:
@@ -180,24 +178,24 @@ class HybridRetriever:
                 doc_type="definition",
                 metadata={"graph_path": "definition"},
             ))
-        
+       
         return graph_chunks
-    
+   
     async def _extract_entities(self, query: str) -> List[Dict[str, Any]]:
         """Extract legal entities from query using LLM."""
         from pydantic import BaseModel
         from typing import List, Optional
-        
+       
         class Entity(BaseModel):
             type: str  # "act" | "section" | "case_law" | "term"
             act: Optional[str] = None
             section: Optional[str] = None
             citation: Optional[str] = None
             term: Optional[str] = None
-        
+       
         class EntityList(BaseModel):
             entities: List[Entity]
-        
+       
         prompt = f"""Extract legal entities from this query about Indian law:
 
 Query: "{query}"
@@ -209,7 +207,7 @@ Identify:
 4. Key legal terms for definition lookup
 
 Return as JSON with entities array."""
-        
+       
         try:
             result = await llm_service.generate_structured(
                 prompt=prompt,
@@ -220,30 +218,30 @@ Return as JSON with entities array."""
         except Exception:
             # Fallback: simple regex extraction
             return self._fallback_entity_extraction(query)
-    
+   
     def _fallback_entity_extraction(self, query: str) -> List[Dict[str, Any]]:
         """Regex-based fallback entity extraction."""
         import re
         entities = []
-        
+       
         # Common Indian acts
         acts_pattern = r"(GST|Goods and Services Tax|Companies Act|Income Tax Act|Constitution|IPC|CrPC|CPC|SEBI|FEMA|Arbitration|Contract Act|Transfer of Property|Specific Relief|Limitation Act|Negotiable Instruments|Partnership Act|Sale of Goods|Consumer Protection|RTI|Right to Information|Motor Vehicles|Environment Protection|Air Prevention|Water Prevention|Factories Act|Industrial Disputes|Trade Marks|Patents|Copyright|Designs|Geographical Indications|Semiconductor|Plant Varieties|Biological Diversity|Competition Act|Insolvency|Bankruptcy|NCLT|NCLAT|SEBI LODR|LODR)[\s\w]*"
-        
+       
         for match in re.finditer(acts_pattern, query, re.IGNORECASE):
             entities.append({"type": "act", "act": match.group(0).strip()})
-        
+       
         # Section references
         section_pattern = r"(?:Section|Sec\.?|§)\s*(\d+[A-Z]?(?:\(\d+\))?(?:\(\w+\))?)"
         for match in re.finditer(section_pattern, query, re.IGNORECASE):
             entities.append({"type": "section", "section": match.group(1)})
-        
+       
         # Case citations
         citation_pattern = r"(?:\d{4}\s+)?(?:SCC|SCR|AIR|SC|HC|NCLT|NCLAT|SAT|CESTAT|ITAT|GSTAT)\s+\d+\s+\d+"
         for match in re.finditer(citation_pattern, query, re.IGNORECASE):
             entities.append({"type": "case_law", "citation": match.group(0).strip()})
-        
+       
         return entities
-    
+   
     def _reciprocal_rank_fusion(
         self,
         vector_results: List[RetrievedChunk],
@@ -256,12 +254,12 @@ Return as JSON with entities array."""
         # Track scores by chunk ID
         rrf_scores = defaultdict(float)
         chunk_map = {}
-        
+       
         # Process vector results
         for rank, chunk in enumerate(vector_results):
             rrf_scores[chunk.id] += self.vector_weight * (1.0 / (self.rrf_k + rank + 1))
             chunk_map[chunk.id] = chunk
-        
+       
         # Process graph results
         for rank, chunk in enumerate(graph_results):
             rrf_scores[chunk.id] += self.graph_weight * (1.0 / (self.rrf_k + rank + 1))
@@ -273,20 +271,20 @@ Return as JSON with entities array."""
                 existing.metadata.update(chunk.metadata)
             else:
                 chunk_map[chunk.id] = chunk
-        
+       
         # Sort by RRF score
         sorted_chunks = sorted(
             chunk_map.values(),
             key=lambda c: rrf_scores[c.id],
             reverse=True,
         )
-        
+       
         # Update scores to RRF scores
         for chunk in sorted_chunks:
             chunk.score = rrf_scores[chunk.id]
-        
+       
         return sorted_chunks
-    
+   
     async def retrieve_by_section(
         self,
         act_name: str,
@@ -301,7 +299,7 @@ Return as JSON with entities array."""
             section_number=section_number,
             limit=5,
         )
-        
+       
         chunks = []
         for r in vector_results:
             payload = r.payload
@@ -315,7 +313,7 @@ Return as JSON with entities array."""
                 chapter=payload.get("chapter"),
                 doc_type=payload.get("doc_type"),
             ))
-        
+       
         # Graph enrichment
         if include_interpretations:
             interpretations = await graph_store.find_interpretations(act_name, section_number)
@@ -330,7 +328,7 @@ Return as JSON with entities array."""
                     court=interp.get("court"),
                     metadata={"graph_path": "interpretation"},
                 ))
-        
+       
         if include_amendments:
             amendments = await graph_store.get_amendment_chain(act_name, section_number)
             for amend in amendments:
@@ -345,7 +343,7 @@ Return as JSON with entities array."""
                         section_number=props.get("number"),
                         metadata={"graph_path": f"amendment_{amend['type']}"},
                     ))
-        
+       
         return chunks
 
 
