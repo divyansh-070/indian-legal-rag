@@ -270,3 +270,6 @@ class PineconeVectorStore:
 
 # Global instance
 vector_store = PineconeVectorStore()
+
+# Backward compatibility alias for retriever.py
+SearchResult = RetrievedChunk
