@@ -20,17 +20,17 @@ async def lifespan(app: FastAPI):
     
     # Initialize services
     await vector_store.connect()
-    print("✓ Qdrant connected")
+    print("✅ Pinecone connected")
     
     await graph_store.connect()
-    print("✓ Neo4j connected")
+    print("✅ Neo4j connected")
     
     # Warm up LLM
     try:
         await llm_service.generate("Test", system="Respond with OK")
-        print("✓ Ollama LLM ready")
+        print("✅ Groq LLM ready")
     except Exception as e:
-        print(f"⚠ Ollama warmup failed: {e}")
+        print(f"⚠ Groq warmup failed: {e}")
     
     yield
     
@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI):
     await vector_store.close()
     await graph_store.close()
     await llm_service.close()
-    print("✓ All services closed")
+    print("✅ All services closed")
 
 
 app = FastAPI(
