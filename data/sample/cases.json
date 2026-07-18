@@ -1,0 +1,22 @@
+[
+  {
+    "citation": "2023 SCC 5 123",
+    "title": "ABC Pvt Ltd vs Union of India",
+    "court": "Supreme Court of India",
+    "year": 2023,
+    "act_referenced": "Central Goods and Services Tax Act, 2017",
+    "section_referenced": "Section 17(5)",
+    "holding": "Input tax credit cannot be claimed on motor vehicles used for personal purposes, even if occasionally used for business.",
+    "ratio": "Section 17(5)(a) blocks ITC on motor vehicles for passenger transport unless exclusively used for specified taxable supplies."
+  },
+  {
+    "citation": "2022 SCC 8 456",
+    "title": "XYZ Traders vs State of Maharashtra",
+    "court": "Bombay High Court",
+    "year": 2022,
+    "act_referenced": "Income Tax Act, 1961",
+    "section_referenced": "Section 44AD",
+    "holding": "Presumptive taxation under Section 44AD applies to eligible assessees even if actual profits are higher, provided conditions are met.",
+    "ratio": "Section 44AD provides optional presumptive taxation; assessee cannot be compelled to maintain books if opting for presumptive scheme."
+  }
+]
