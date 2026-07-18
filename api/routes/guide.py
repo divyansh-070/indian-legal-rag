@@ -12,7 +12,7 @@ from api.agents.guidance_synthesizer import GuidanceResponse, ImmediateStep, Leg
 from api.agents.clarification_agent import ClarificationResponse
 
 
-router = APIRouter(prefix="/guide", tags=["guide"])
+router = APIRouter(tags=["guide"])
 
 
 # ─── Request/Response Models ──────────────────────────────────────────────────
