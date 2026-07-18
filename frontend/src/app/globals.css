@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --foreground-rgb: 17, 24, 39;
+    --background-rgb: 249, 250, 251;
+  }
+}
+
+@layer components {
+  .prose {
+    @apply text-gray-700;
+  }
+  .prose h1, .prose h2, .prose h3, .prose h4 {
+    @apply text-gray-900 font-semibold;
+  }
+  .prose ul, .prose ol {
+    @apply space-y-2;
+  }
+  .prose li {
+    @apply relative pl-4;
+  }
+  .prose li::marker {
+    @apply text-gray-500;
+  }
+}
