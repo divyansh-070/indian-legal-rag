@@ -58,3 +58,4 @@ services:
 # - Neo4j Aura: https://console.neo4j.io (200k nodes free)
 
 # Frontend is deployed separately to Vercel (see vercel.json)
+# Force deploy Sun, Jul 19, 2026  3:18:53 AM
