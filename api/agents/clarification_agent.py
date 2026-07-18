@@ -12,6 +12,7 @@ from api.config import settings
 
 class ClarificationQuestion(BaseModel):
     """A targeted clarification question."""
+    id: str
     question: str
     reason: str  # why this matters legally
     field: str  # which field in analysis this fills
@@ -109,24 +110,28 @@ class ClarificationAgent:
         
         for info in missing:
             if info in field_questions:
-                questions.append(field_questions[info])
+                q = field_questions[info]
+                q.id = info.lower().replace(" ", "_")
+                questions.append(q)
         
         # Add category-specific questions
         for issue in analysis.legal_issues:
             if issue.category == "employment" and "notice period" not in str(missing).lower():
-                questions.append(ClarificationQuestion(
-                    question="What does your appointment letter/employment contract say about notice period and termination?",
-                    reason="Employment contracts govern termination; statutory minimums apply if contract silent",
-                    field="employment_terms",
-                    priority="high"
-                ))
+                        questions.append(ClarificationQuestion(
+                            id="employment_terms",
+                            question="What does your appointment letter/employment contract say about notice period and termination?",
+                            reason="Employment contracts govern termination; statutory minimums apply if contract silent",
+                            field="employment_terms",
+                            priority="high"
+                        ))
             elif issue.category == "consumer" and "product details" not in str(missing).lower():
-                questions.append(ClarificationQuestion(
-                    question="What product/service did you purchase? Price? Platform (online/offline)? Any warranty/guarantee?",
-                    reason="Consumer Protection Act remedies depend on defect type, value, and platform liability",
-                    field="consumer_details",
-                    priority="high"
-                ))
+                        questions.append(ClarificationQuestion(
+                            id="consumer_details",
+                            question="What product/service did you purchase? Price? Platform (online/offline)? Any warranty/guarantee?",
+                            reason="Consumer Protection Act remedies depend on defect type, value, and platform liability",
+                            field="consumer_details",
+                            priority="high"
+                        ))
         
         return ClarificationResponse(
             questions=questions[:5],  # Max 5
