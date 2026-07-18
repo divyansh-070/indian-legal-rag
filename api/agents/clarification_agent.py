@@ -23,6 +23,7 @@ class ClarificationResponse(BaseModel):
     """Response with clarification questions."""
     questions: List[ClarificationQuestion]
     can_proceed_without: bool  # whether we can give preliminary guidance
+    missing_critical_info: Optional[List[str]] = None
 
 
 CLARIFICATION_SYSTEM = """You are a legal intake specialist. Given an initial situation analysis with gaps, generate targeted follow-up questions.
@@ -135,5 +136,7 @@ class ClarificationAgent:
         
         return ClarificationResponse(
             questions=questions[:5],  # Max 5
-            can_proceed_without=len(questions) < 3
+            can_proceed_without=len(questions) < 3,
+            missing_critical_info=[q.field for q in questions if q.priority == "high"]
+        )
         )
