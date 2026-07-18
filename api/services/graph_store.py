@@ -583,6 +583,22 @@ class GraphStore:
                 records.append(dict(record))
             return records
 
+    # ─── Alias methods for backward compatibility ───────────────────────────────
+    async def create_act(self, name: str, short_name: str = "", year: int = 0) -> str:
+        """Alias for upsert_act."""
+        return await self.upsert_act(act_name=name, description=short_name, year=year)
+
+    async def create_section(self, act_name: str, number: str, text: str,
+                            chapter: str = "", marginal_note: str = "") -> str:
+        """Alias for upsert_section."""
+        return await self.upsert_section(act_name=act_name, section_number=number,
+                                         text=text, chapter=chapter, marginal_note=marginal_note)
+
+    async def create_case_law(self, citation: str, title: str, court: str, year: int,
+                             holding: str = "", ratio: str = "") -> str:
+        """Alias for upsert_case_law."""
+        return await self.upsert_case_law(citation=citation, title=title, court=court,
+                                         date=str(year), holding=holding, ratio=ratio)
 
 # Global instance
 graph_store = GraphStore()
