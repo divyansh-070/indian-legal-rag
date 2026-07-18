@@ -1,6 +1,6 @@
 """
-Vector Store Service — Pinecone wrapper with integrated embedding (no local model).
-Uses Pinecone Serverless integrated embedding API - zero local memory for embeddings.
+Vector Store Service — Pinecone wrapper using Inference API for embeddings.
+Uses Pinecone Inference API for embeddings + regular upsert/query operations.
 """
 
 import asyncio
@@ -39,7 +39,7 @@ class RetrievedChunk:
 
 
 class PineconeVectorStore:
-    """Pinecone-based vector store with integrated embedding (no local model)."""
+    """Pinecone-based vector store using Inference API for embeddings."""
 
     def __init__(self):
         self.pc: Optional[Pinecone] = None
@@ -48,7 +48,7 @@ class PineconeVectorStore:
         self._embedding_dim = settings.EMBEDDING_DIM
 
     async def connect(self):
-        """Initialize Pinecone client and index with integrated embedding."""
+        """Initialize Pinecone client and index."""
         if self._connected:
             return
 
@@ -61,8 +61,7 @@ class PineconeVectorStore:
             existing_indexes = [idx.name for idx in self.pc.list_indexes()]
 
             if index_name not in existing_indexes:
-                # Create index with integrated embedding (serverless)
-                # Use Pinecone's integrated embedding
+                # Create index (standard, no integrated embedding)
                 self.pc.create_index(
                     name=index_name,
                     dimension=settings.EMBEDDING_DIM,
@@ -70,12 +69,7 @@ class PineconeVectorStore:
                     spec=ServerlessSpec(
                         cloud="aws",
                         region="us-east-1"
-                    ),
-                    # Use Pinecone's integrated embedding
-                    embedding_config={
-                        "model": settings.PINECONE_EMBEDDING_MODEL,
-                        "field_map": {"text": "text"}
-                    }
+                    )
                 )
                 # Wait for index to be ready
                 import time
@@ -86,7 +80,7 @@ class PineconeVectorStore:
             self.index = self.pc.Index(index_name)
 
             self._connected = True
-            print(f"✅ Pinecone connected: {index_name} (integrated embedding: {settings.PINECONE_EMBEDDING_MODEL})")
+            print(f"✅ Pinecone connected: {index_name} (using Inference API for embeddings)")
 
         except Exception as e:
             print(f"❌ Pinecone connection failed: {e}")
@@ -117,33 +111,50 @@ class PineconeVectorStore:
                if isinstance(v, (str, int, float, bool)) and k != "text"}
         }
 
+    async def _get_embeddings(self, texts: List[str]) -> List[List[float]]:
+        """Generate embeddings using Pinecone Inference API."""
+        if not self.pc or not hasattr(self.pc, 'inference') or not hasattr(self.pc.inference, 'embed'):
+            raise RuntimeError("Inference not available. Check Pinecone version.")
+        
+        # Use Pinecone Inference API for embeddings
+        response = self.pc.inference.embed(
+            model=settings.PINECONE_EMBEDDING_MODEL,
+            inputs=texts,
+            parameters={"input_type": "passage", "truncate": "END"}
+        )
+        return [d["values"] for d in response.data]
+
     async def upsert_documents(self, documents: List[Dict[str, Any]]) -> int:
-        """Upsert documents to Pinecone using integrated embedding."""
+        """Upsert documents to Pinecone using Inference API for embeddings."""
         if not self._connected:
             await self.connect()
 
         if not documents:
             return 0
 
-        # Prepare records for Pinecone integrated embedding
-        records = []
-        for doc in documents:
-            records.append({
+        # Prepare texts for embedding
+        texts = [doc["text"] for doc in documents]
+        embeddings = await self._get_embeddings(texts)
+
+        # Prepare vectors for upsert
+        vectors = []
+        for i, (doc, embedding) in enumerate(zip(documents, embeddings)):
+            vectors.append({
                 "id": doc["id"],
-                "text": doc["text"],
-                **self._prepare_metadata(doc)
+                "values": embedding,
+                "metadata": self._prepare_metadata(doc)
             })
 
         # Upsert in batches
-        batch_size = 96  # Pinecone limit for integrated embedding
+        batch_size = 100
         total_upserted = 0
 
-        for i in range(0, len(records), batch_size):
-            batch = records[i:i + batch_size]
-            self.index.upsert_records(namespace="", records=batch)
+        for i in range(0, len(vectors), batch_size):
+            batch = vectors[i:i + batch_size]
+            self.index.upsert(vectors=batch, namespace="")
             total_upserted += len(batch)
 
-        print(f"✅ Upserted {total_upserted} documents to Pinecone (integrated embedding)")
+        print(f"✅ Upserted {total_upserted} documents to Pinecone (using Inference API)")
         return total_upserted
 
     async def search(
@@ -152,7 +163,7 @@ class PineconeVectorStore:
         top_k: int = 20,
         filter_dict: Optional[Dict[str, Any]] = None
     ) -> List[RetrievedChunk]:
-        """Search using Pinecone integrated embedding."""
+        """Search using Pinecone with query embedding from Inference API."""
         if not self._connected:
             await self.connect()
 
@@ -166,39 +177,38 @@ class PineconeVectorStore:
                 else:
                     filter_expr[k] = {"$eq": v}
 
-        # Search using integrated embedding (query as text)
-        results = self.index.search(
-            namespace="",
-            query={
-                "top_k": top_k,
-                "inputs": {"text": query}
-            },
+        # Embed query
+        query_embedding = (await self._get_embeddings([query]))[0]
+
+        # Search
+        results = self.index.query(
+            vector=query_embedding,
+            top_k=top_k,
             filter=filter_expr,
-            fields=["text", "act_name", "section_number", "subsection", "chapter",
-                    "marginal_note", "doc_type", "source_url", "effective_date",
-                    "jurisdiction", "court", "citation"]
+            include_metadata=True,
+            include_values=False
         )
 
         # Convert to RetrievedChunk
         chunks = []
-        for hit in results.get("result", {}).get("hits", []):
-            fields = hit.get("fields", {})
+        for match in results.matches:
+            metadata = match.metadata or {}
             chunks.append(RetrievedChunk(
-                id=hit.get("id", ""),
-                text=fields.get("text", ""),
-                score=hit.get("score", 0.0),
-                act_name=fields.get("act_name"),
-                section_number=fields.get("section_number"),
-                subsection=fields.get("subsection"),
-                chapter=fields.get("chapter"),
-                marginal_note=fields.get("marginal_note"),
-                doc_type=fields.get("doc_type"),
-                source_url=fields.get("source_url"),
-                effective_date=fields.get("effective_date"),
-                jurisdiction=fields.get("jurisdiction", "India"),
-                court=fields.get("court"),
-                citation=fields.get("citation"),
-                metadata=fields
+                id=match.id,
+                text=metadata.get("text", ""),
+                score=match.score,
+                act_name=metadata.get("act_name"),
+                section_number=metadata.get("section_number"),
+                subsection=metadata.get("subsection"),
+                chapter=metadata.get("chapter"),
+                marginal_note=metadata.get("marginal_note"),
+                doc_type=metadata.get("doc_type"),
+                source_url=metadata.get("source_url"),
+                effective_date=metadata.get("effective_date"),
+                jurisdiction=metadata.get("jurisdiction", "India"),
+                court=metadata.get("court"),
+                citation=metadata.get("citation"),
+                metadata=metadata
             ))
 
         return chunks
@@ -212,41 +222,41 @@ class PineconeVectorStore:
         if not self._connected:
             await self.connect()
 
-        results = self.index.search(
-            namespace="",
-            query={
-                "top_k": 1,
-                "inputs": {"text": f"{act_name} section {section_number}"}
-            },
+        # Embed query
+        query_text = f"{act_name} section {section_number}"
+        query_embedding = (await self._get_embeddings([query_text]))[0]
+
+        # Search with exact filter
+        results = self.index.query(
+            vector=query_embedding,
+            top_k=1,
             filter={
                 "act_name": {"$eq": act_name},
                 "section_number": {"$eq": section_number}
             },
-            fields=["text", "act_name", "section_number", "subsection", "chapter",
-                    "marginal_note", "doc_type", "source_url", "effective_date",
-                    "jurisdiction", "court", "citation"]
+            include_metadata=True,
+            include_values=False
         )
 
-        hits = results.get("result", {}).get("hits", [])
-        if hits:
-            hit = hits[0]
-            fields = hit.get("fields", {})
+        if results.matches:
+            match = results.matches[0]
+            metadata = match.metadata or {}
             return RetrievedChunk(
-                id=hit.get("id", ""),
-                text=fields.get("text", ""),
-                score=hit.get("score", 0.0),
-                act_name=fields.get("act_name"),
-                section_number=fields.get("section_number"),
-                subsection=fields.get("subsection"),
-                chapter=fields.get("chapter"),
-                marginal_note=fields.get("marginal_note"),
-                doc_type=fields.get("doc_type"),
-                source_url=fields.get("source_url"),
-                effective_date=fields.get("effective_date"),
-                jurisdiction=fields.get("jurisdiction", "India"),
-                court=fields.get("court"),
-                citation=fields.get("citation"),
-                metadata=fields
+                id=match.id,
+                text=metadata.get("text", ""),
+                score=match.score,
+                act_name=metadata.get("act_name"),
+                section_number=metadata.get("section_number"),
+                subsection=metadata.get("subsection"),
+                chapter=metadata.get("chapter"),
+                marginal_note=metadata.get("marginal_note"),
+                doc_type=metadata.get("doc_type"),
+                source_url=metadata.get("source_url"),
+                effective_date=metadata.get("effective_date"),
+                jurisdiction=metadata.get("jurisdiction", "India"),
+                court=metadata.get("court"),
+                citation=metadata.get("citation"),
+                metadata=metadata
             )
         return None
 
@@ -261,7 +271,7 @@ class PineconeVectorStore:
         """Delete all vectors (use with caution)."""
         if not self._connected:
             await self.connect()
-        self.index.delete(delete_all=True, namespace="")
+        self.index.delete(delete_all=True)
         return True
 
 
