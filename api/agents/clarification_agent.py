@@ -2,6 +2,7 @@
 Clarification Agent — Generates targeted follow-up questions to fill critical gaps.
 """
 
+import time
 from typing import List, Optional
 from pydantic import BaseModel, Field
 
@@ -12,7 +13,7 @@ from api.config import settings
 
 class ClarificationQuestion(BaseModel):
     """A targeted clarification question."""
-    id: Optional[str] = None
+    id: Optional[str] = Field(default_factory=lambda: f"q_{int(time.time() * 1000)}")
     question: str
     reason: str  # why this matters legally
     field: str  # which field in analysis this fills
