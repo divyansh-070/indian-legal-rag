@@ -140,4 +140,3 @@ class ClarificationAgent:
             can_proceed_without=len(questions) < 3,
             missing_critical_info=[q.field for q in questions if q.priority == "high"]
         )
-        )
