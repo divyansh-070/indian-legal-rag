@@ -12,7 +12,7 @@ from api.config import settings
 
 class ClarificationQuestion(BaseModel):
     """A targeted clarification question."""
-    id: str
+    id: Optional[str] = None
     question: str
     reason: str  # why this matters legally
     field: str  # which field in analysis this fills
