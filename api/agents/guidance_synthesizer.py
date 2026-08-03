@@ -64,6 +64,7 @@ class GuidanceResponse(BaseModel):
     sources: List[Dict[str, Any]]  # citations with act, section, description
     limitation_periods: List[Dict[str, str]]  # act, period, from_when
     jurisdiction: str
+    critic_metadata: Optional[Dict[str, Any]] = None
     disclaimer: str = "This is legal information based on your description, not legal advice. Consult a qualified advocate for your specific case. Laws may have changed; verify current provisions."
 
 

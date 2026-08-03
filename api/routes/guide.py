@@ -98,9 +98,8 @@ async def analyze_situation(request: GuideRequest):
                     {
                         "id": q.id,
                         "question": q.question,
-                        "why_needed": q.why_needed,
-                        "critical": q.critical,
-                        "example_answer": q.example_answer,
+                        "why_needed": q.reason,
+                        "critical": q.priority == "high",
                     }
                     for q in clar.questions
                 ],
@@ -163,9 +162,8 @@ async def get_guide(request: GuideRequest):
                     {
                         "id": q.id,
                         "question": q.question,
-                        "why_needed": q.why_needed,
-                        "critical": q.critical,
-                        "example_answer": q.example_answer,
+                        "why_needed": q.reason,
+                        "critical": q.priority == "high",
                     }
                     for q in clar.questions
                 ],

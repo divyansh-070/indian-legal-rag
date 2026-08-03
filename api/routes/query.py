@@ -35,17 +35,13 @@ async def query(request: QueryRequest):
     Main query endpoint — retrieves relevant legal sources and generates cited answer.
     """
     try:
-        # Override top_k if provided
-        if request.top_k:
-            original_final = hybrid_retriever.top_k_final
-            hybrid_retriever.top_k_final = request.top_k
-        
         # Retrieve relevant chunks
         chunks = await hybrid_retriever.retrieve(
             query=request.question,
             filters=request.filters,
             use_graph=request.use_graph,
             graph_hops=settings.GRAPH_HOPS,
+            top_k_override=request.top_k,
         )
         
         if not chunks:
@@ -70,9 +66,7 @@ async def query(request: QueryRequest):
             format=request.format,
         )
         
-        # Restore top_k
-        if request.top_k:
-            hybrid_retriever.top_k_final = original_final
+
         
         # Build response
         response_data = {
@@ -109,8 +103,6 @@ async def query(request: QueryRequest):
         )
     
     except Exception as e:
-        if request.top_k:
-            hybrid_retriever.top_k_final = original_final
         raise HTTPException(status_code=500, detail=f"Query failed: {str(e)}")
 
 

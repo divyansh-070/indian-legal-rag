@@ -20,16 +20,16 @@ async def health_check() -> Dict[str, Any]:
     checks = {}
     overall = "healthy"
     
-    # Check Qdrant
+    # Check Pinecone
     try:
         count = await vector_store.count()
-        checks["qdrant"] = {
+        checks["pinecone"] = {
             "status": "healthy",
-            "collection": settings.QDRANT_COLLECTION,
+            "collection": settings.PINECONE_INDEX_NAME,
             "document_count": count,
         }
     except Exception as e:
-        checks["qdrant"] = {"status": "unhealthy", "error": str(e)}
+        checks["pinecone"] = {"status": "unhealthy", "error": str(e)}
         overall = "degraded"
     
     # Check Neo4j

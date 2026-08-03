@@ -42,7 +42,7 @@ async def init_neo4j():
         
         for constraint in constraints:
             try:
-                await graph_store.run_query(constraint)
+                await graph_store.run_cypher(constraint)
                 print(f"   ✅ Constraint created")
             except Exception as e:
                 print(f"   ⚠️ Constraint warning: {e}")
@@ -78,8 +78,5 @@ async def main():
 
 
 if __name__ == "__main__":
-    import sys
-    import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     exit_code = asyncio.run(main())
     sys.exit(exit_code)

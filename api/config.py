@@ -3,7 +3,7 @@ Configuration for Indian Legal RAG + Guidance API.
 """
 
 import os
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 
 
@@ -99,11 +99,12 @@ class Settings(BaseSettings):
     ENABLE_CACHING: bool = os.getenv("ENABLE_CACHING", "true").lower() == "true"
     CACHE_TTL: int = int(os.getenv("CACHE_TTL", "3600"))
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = True
-        extra = "allow"
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+        extra="allow",
+    )
 
 
 settings = Settings()

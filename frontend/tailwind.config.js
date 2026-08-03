@@ -8,17 +8,30 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: {
-          50: '#eff6ff',
-          100: '#dbeafe',
-          200: '#bfdbfe',
-          300: '#93c5fd',
-          400: '#60a5fa',
-          500: '#3b82f6',
-          600: '#2563eb',
-          700: '#1d4ed8',
-          800: '#1e40af',
-          900: '#1e3a8a',
+        surface: {
+          primary: '#06080f',
+          secondary: '#0c1220',
+          card: '#111827',
+        },
+        accent: {
+          blue: '#3b82f6',
+          gold: '#d4a853',
+          emerald: '#10b981',
+          rose: '#f43f5e',
+        },
+      },
+      animation: {
+        'fade-in-up': 'fade-in-up 0.5s cubic-bezier(0.4,0,0.2,1) both',
+        'fade-in': 'fade-in 0.4s ease both',
+      },
+      keyframes: {
+        'fade-in-up': {
+          from: { opacity: '0', transform: 'translateY(16px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
+        'fade-in': {
+          from: { opacity: '0' },
+          to: { opacity: '1' },
         },
       },
     },

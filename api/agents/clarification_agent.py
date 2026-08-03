@@ -7,7 +7,7 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from api.services.llm import llm_service
-from api.agents.situation_analyzer import SituationAnalysis, LegalIssue
+from api.agents.situation_analyzer import SituationAnalysis
 from api.config import settings
 
 

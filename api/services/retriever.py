@@ -8,7 +8,7 @@ from typing import List, Dict, Any, Optional, Set
 from dataclasses import dataclass
 from collections import defaultdict
 
-from api.services.vector_store import vector_store, RetrievedChunk
+from api.services.vector_store import vector_store
 from api.services.graph_store import graph_store, GraphPath
 from api.config import settings
 from api.services.llm import llm_service
@@ -62,6 +62,7 @@ class HybridRetriever:
         filters: Dict[str, Any] = None,
         use_graph: bool = True,
         graph_hops: int = 2,
+        top_k_override: int = None,
     ) -> List[RetrievedChunk]:
         """
         Main retrieval entry point.
@@ -79,7 +80,7 @@ class HybridRetriever:
         # Fuse results
         fused = self._reciprocal_rank_fusion(vector_results, graph_results)
        
-        return fused[:self.top_k_final]
+        return fused[:top_k_override or self.top_k_final]
    
     async def _vector_search(
         self,

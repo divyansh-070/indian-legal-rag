@@ -2,8 +2,15 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Indian Legal Guide',
-  description: 'AI-powered legal research and guidance for Indian law',
+  title: 'Indian Legal Guide — AI-Powered Legal Research & Guidance',
+  description:
+    'Get actionable legal guidance and cited research for Indian law. Powered by AI with real statutes, case law, and expert analysis.',
+  keywords: ['Indian law', 'legal research', 'legal guidance', 'AI legal', 'statutes', 'case law'],
+  openGraph: {
+    title: 'Indian Legal Guide',
+    description: 'AI-powered legal research and actionable guidance for Indian law.',
+    type: 'website',
+  },
 };
 
 export default function RootLayout({
@@ -13,7 +20,15 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-gray-50">{children}</body>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body style={{ fontFamily: "'Inter', sans-serif" }}>{children}</body>
     </html>
   );
 }
