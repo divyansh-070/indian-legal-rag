@@ -1,9 +1,10 @@
 """
-LLM Service — Wrapper around Ollama for local LLM inference.
+LLM Service — Wrapper for Groq/OpenAI-compatible LLM APIs.
 Supports primary model + fallback with structured output parsing.
 """
 
 import json
+import os
 import asyncio
 from typing import Any, Dict, List, Optional, Type, TypeVar
 from pydantic import BaseModel, ValidationError
@@ -18,7 +19,7 @@ T = TypeVar("T", bound=BaseModel)
 
 
 class LLMService:
-    """Async Ollama client with structured output support."""
+    """Async LLM client compatible with Groq / OpenAI-style APIs."""
     
     def __init__(
         self,
@@ -27,15 +28,25 @@ class LLMService:
         fallback_model: str = None,
         timeout: float = 120.0,
     ):
-        self.base_url = base_url or settings.OLLAMA_HOST
+        self.base_url = (base_url or settings.OLLAMA_HOST).rstrip("/")
         self.model = model or settings.OLLAMA_MODEL
         self.fallback_model = fallback_model or settings.OLLAMA_FALLBACK_MODEL
         self.timeout = timeout
         self._client: Optional[httpx.AsyncClient] = None
+        # Auth: check for GROQ_API_KEY or OPENROUTER_API_KEY in env
+        self.api_key = (
+            os.getenv("GROQ_API_KEY")
+            or os.getenv("OPENROUTER_API_KEY")
+            or os.getenv("OPENAI_API_KEY")
+            or ""
+        )
     
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None:
-            self._client = httpx.AsyncClient(timeout=self.timeout)
+            headers = {"Content-Type": "application/json"}
+            if self.api_key:
+                headers["Authorization"] = f"Bearer {self.api_key}"
+            self._client = httpx.AsyncClient(timeout=self.timeout, headers=headers)
         return self._client
     
     async def close(self):
@@ -47,37 +58,32 @@ class LLMService:
         stop=stop_after_attempt(2),
         wait=wait_exponential(multiplier=1, min=2, max=10),
     )
-    async def _generate_raw(
+    async def _chat_completion(
         self,
-        prompt: str,
+        messages: List[Dict[str, str]],
         model: str = None,
-        system: str = None,
-        format: str = None,
-        options: Dict = None,
+        temperature: float = 0.1,
+        max_tokens: int = None,
     ) -> str:
-        """Raw generation call to Ollama."""
+        """Call the OpenAI-compatible /chat/completions endpoint."""
         client = await self._get_client()
         model = model or self.model
         
-        payload = {
+        payload: Dict[str, Any] = {
             "model": model,
-            "prompt": prompt,
-            "stream": False,
-            "options": options or {"temperature": 0.1, "top_p": 0.9},
+            "messages": messages,
+            "temperature": temperature,
         }
-        
-        if system:
-            payload["system"] = system
-        if format:
-            payload["format"] = format
+        if max_tokens:
+            payload["max_tokens"] = max_tokens
         
         response = await client.post(
-            f"{self.base_url}/api/generate",
+            f"{self.base_url}/chat/completions",
             json=payload,
         )
         response.raise_for_status()
         data = response.json()
-        return data.get("response", "")
+        return data["choices"][0]["message"]["content"]
     
     async def generate(
         self,
@@ -87,11 +93,16 @@ class LLMService:
         use_fallback: bool = True,
     ) -> str:
         """Generate text response."""
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+        
         try:
-            return await self._generate_raw(prompt, model=model, system=system)
+            return await self._chat_completion(messages, model=model)
         except Exception as e:
             if use_fallback and model != self.fallback_model:
-                return await self._generate_raw(prompt, model=self.fallback_model, system=system)
+                return await self._chat_completion(messages, model=self.fallback_model)
             raise
     
     async def generate_structured(
@@ -104,26 +115,25 @@ class LLMService:
         max_retries: int = 2,
     ) -> T:
         """Generate and parse structured output using Pydantic model."""
-        # Build format schema from Pydantic model
         schema = response_model.model_json_schema()
-        format_prompt = f"""
+        format_prompt = f"""\
 {prompt}
 
 Respond ONLY with valid JSON matching this schema:
-{json.dumps(schema, indent=2)}
-"""
+{json.dumps(schema, indent=2)}"""
+        
+        json_system = (system or "") + "\nYou MUST respond with valid JSON only. No markdown, no explanation."
         
         last_error = None
         for attempt in range(max_retries + 1):
             try:
                 response = await self.generate(
                     format_prompt,
-                    system=system,
+                    system=json_system.strip(),
                     model=model,
                     use_fallback=use_fallback,
                 )
                 
-                # Extract JSON from response
                 json_str = self._extract_json(response)
                 data = json.loads(json_str)
                 return response_model(**data)
@@ -131,7 +141,6 @@ Respond ONLY with valid JSON matching this schema:
             except (json.JSONDecodeError, ValidationError) as e:
                 last_error = e
                 if attempt < max_retries:
-                    # Add correction hint
                     format_prompt += f"\n\nPREVIOUS RESPONSE WAS INVALID JSON. ERROR: {e}. Please output ONLY valid JSON."
                 continue
         
@@ -155,39 +164,26 @@ Respond ONLY with valid JSON matching this schema:
         use_fallback: bool = True,
     ) -> str:
         """Chat completion with message history."""
-        client = await self._get_client()
-        model = model or self.model
-        
-        payload = {
-            "model": model,
-            "messages": messages,
-            "stream": False,
-            "options": {"temperature": 0.1, "top_p": 0.9},
-        }
-        
         try:
-            response = await client.post(
-                f"{self.base_url}/api/chat",
-                json=payload,
-            )
-            response.raise_for_status()
-            data = response.json()
-            return data.get("message", {}).get("content", "")
+            return await self._chat_completion(messages, model=model)
         except Exception as e:
             if use_fallback and model != self.fallback_model:
-                return await self.chat(messages, model=self.fallback_model, use_fallback=False)
+                return await self._chat_completion(messages, model=self.fallback_model)
             raise
     
     async def embed(self, text: str, model: str = "nomic-embed-text") -> List[float]:
-        """Generate embeddings using Ollama."""
+        """Generate embeddings (Ollama-compatible endpoint)."""
         client = await self._get_client()
         
         response = await client.post(
-            f"{self.base_url}/api/embeddings",
-            json={"model": model, "prompt": text},
+            f"{self.base_url}/embeddings",
+            json={"model": model, "input": text},
         )
         response.raise_for_status()
         data = response.json()
+        # Handle both OpenAI and Ollama response formats
+        if "data" in data:
+            return data["data"][0]["embedding"]
         return data.get("embedding", [])
 
 
