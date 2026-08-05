@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Search, Scale, Lightbulb, Loader2, AlertCircle, CheckCircle, Shield, Clock, BookOpen, ChevronRight, Sparkles } from 'lucide-react';
+import { Search, Scale, Lightbulb, Loader2, AlertCircle, CheckCircle, Clock, BookOpen, ChevronRight } from 'lucide-react';
 
 /* ── Types ────────────────────────────────────────────────────────── */
 
@@ -51,17 +51,13 @@ const MODES = [
     id: 'guide' as const,
     label: 'Legal Guidance',
     icon: Lightbulb,
-    desc: 'Plain-language actionable steps for your situation',
-    accent: 'var(--accent-gold)',
-    badgeClass: 'badge-gold',
+    desc: 'Plain-language steps tailored to your situation',
   },
   {
     id: 'query' as const,
     label: 'Legal Research',
     icon: Scale,
     desc: 'Cited sections, statutes, and case law analysis',
-    accent: 'var(--accent-blue)',
-    badgeClass: 'badge-blue',
   },
 ];
 
@@ -112,216 +108,168 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-radial bg-grid">
+    <div className="min-h-screen" style={{ background: 'var(--bg-primary)', fontFamily: "'Inter', sans-serif" }}>
+
       {/* ── Header ──────────────────────────────────────────────── */}
-      <header className="relative border-b" style={{ borderColor: 'var(--border-subtle)' }}>
-        <div className="max-w-5xl mx-auto px-6 py-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+      <header style={{ borderBottom: '1px solid var(--border)' }}>
+        <div className="max-w-3xl mx-auto px-6 py-5 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
             <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center"
-              style={{
-                background: 'linear-gradient(135deg, var(--accent-blue), #7c3aed)',
-                boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
-              }}
+              className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{ background: 'var(--navy)', color: 'white' }}
             >
-              <Shield className="w-5 h-5 text-white" />
+              <Scale className="w-4 h-4" />
             </div>
-            <div>
-              <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>
-                Indian Legal Guide
-              </h1>
-              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                AI-Powered Legal Intelligence
-              </p>
-            </div>
+            <span className="text-base font-semibold" style={{ color: 'var(--text-heading)' }}>
+              Indian Legal Guide
+            </span>
           </div>
-          <span className="badge badge-blue">
-            <Sparkles className="w-3 h-3 mr-1" />
-            Beta
-          </span>
+          <span className="tag tag-indigo">v1.0</span>
         </div>
       </header>
 
-      {/* ── Main Content ─────────────────────────────────────────── */}
-      <main className="max-w-5xl mx-auto px-6 py-10">
-        {/* Hero Section */}
-        <div className="text-center mb-10 animate-fade-in-up">
-          <h2
-            className="text-3xl md:text-4xl font-extrabold mb-3"
-            style={{
-              background: 'linear-gradient(135deg, var(--text-primary) 0%, var(--accent-blue) 50%, var(--accent-gold) 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-            }}
+      {/* ── Main ─────────────────────────────────────────────────── */}
+      <main className="max-w-3xl mx-auto px-6 pt-12 pb-16">
+
+        {/* Hero */}
+        <div className="text-center mb-12 animate-enter">
+          <h1
+            className="text-3xl md:text-4xl font-bold mb-3"
+            style={{ color: 'var(--text-heading)', fontFamily: "'Lora', serif" }}
           >
-            Navigate Indian Law with Confidence
-          </h2>
-          <p className="text-base max-w-2xl mx-auto" style={{ color: 'var(--text-secondary)' }}>
-            Get actionable legal guidance or deep research with cited statutes and case law — powered by AI.
+            How can we help you today?
+          </h1>
+          <p className="text-base max-w-xl mx-auto" style={{ color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+            Describe your legal situation or ask a specific question.
+            We&apos;ll provide actionable guidance backed by Indian statutes and case law.
           </p>
         </div>
 
-        {/* Mode & Input Grid */}
-        <div className="grid md:grid-cols-5 gap-6 mb-8">
-          {/* Mode Selector — Left */}
-          <div className="md:col-span-2 space-y-4 animate-fade-in-up animate-delay-100">
-            <p className="text-sm font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>
-              Choose Mode
-            </p>
-            {MODES.map((m) => (
-              <button
-                key={m.id}
-                onClick={() => setMode(m.id)}
-                className={`mode-card w-full text-left ${mode === m.id ? 'active' : ''}`}
-              >
-                <div className="flex items-start gap-3 relative z-10">
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                    style={{
-                      background:
-                        mode === m.id
-                          ? `linear-gradient(135deg, ${m.accent}, rgba(59,130,246,0.6))`
-                          : 'rgba(148, 163, 184, 0.08)',
-                      boxShadow:
-                        mode === m.id ? `0 4px 12px ${m.accent}40` : 'none',
-                      transition: 'all 0.3s ease',
-                    }}
-                  >
-                    <m.icon
-                      className="w-5 h-5"
-                      style={{
-                        color: mode === m.id ? 'white' : 'var(--text-muted)',
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
-                      {m.label}
-                    </p>
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-                      {m.desc}
-                    </p>
-                  </div>
+        {/* Mode Selector */}
+        <div className="grid grid-cols-2 gap-3 mb-6 animate-enter delay-1">
+          {MODES.map((m) => (
+            <button
+              key={m.id}
+              onClick={() => setMode(m.id)}
+              className={`mode-card ${mode === m.id ? 'active' : ''}`}
+            >
+              <div className="flex items-start gap-3">
+                <m.icon
+                  className="w-5 h-5 mt-0.5 flex-shrink-0"
+                  style={{ color: mode === m.id ? 'var(--navy)' : 'var(--text-muted)' }}
+                />
+                <div>
+                  <p className="font-semibold text-sm" style={{ color: 'var(--text-heading)' }}>
+                    {m.label}
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+                    {m.desc}
+                  </p>
                 </div>
-              </button>
-            ))}
-          </div>
-
-          {/* Input Form — Right */}
-          <div className="md:col-span-3 glass-card-static p-6 animate-fade-in-up animate-delay-200">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
-                {mode === 'guide' ? 'Describe Your Situation' : 'Enter Your Legal Query'}
-              </h2>
-              <span className={`badge ${mode === 'guide' ? 'badge-gold' : 'badge-blue'}`}>
-                {mode === 'guide' ? 'Guidance' : 'Research'}
-              </span>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <textarea
-                id="legal-query-input"
-                value={question}
-                onChange={(e) => setQuestion(e.target.value)}
-                rows={5}
-                placeholder={
-                  mode === 'guide'
-                    ? 'e.g., "My landlord is refusing to return my security deposit after I vacated the flat in Mumbai. I have the rental agreement and payment receipts."'
-                    : 'e.g., "Section 9 CGST Act composition scheme eligibility criteria for service providers"'
-                }
-                className="input-glass"
-                disabled={loading}
-              />
-              <button
-                id="submit-query-btn"
-                type="submit"
-                disabled={loading || !question.trim()}
-                className="btn-primary w-full"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Analyzing...
-                  </>
-                ) : (
-                  <>
-                    <Search className="w-5 h-5" />
-                    {mode === 'guide' ? 'Get Guidance' : 'Research'}
-                  </>
-                )}
-              </button>
-            </form>
-          </div>
+              </div>
+            </button>
+          ))}
         </div>
 
-        {/* ── Loading State ──────────────────────────────────────── */}
+        {/* Input Form */}
+        <div className="card p-6 mb-8 animate-enter delay-2">
+          <form onSubmit={handleSubmit}>
+            <label
+              htmlFor="legal-query-input"
+              className="block text-sm font-semibold mb-2"
+              style={{ color: 'var(--text-heading)' }}
+            >
+              {mode === 'guide' ? 'Describe your situation' : 'Enter your legal question'}
+            </label>
+            <textarea
+              id="legal-query-input"
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              rows={4}
+              placeholder={
+                mode === 'guide'
+                  ? 'e.g., "My landlord is refusing to return my security deposit after I vacated the flat in Mumbai. I have the rental agreement and payment receipts."'
+                  : 'e.g., "What are the eligibility criteria for composition scheme under Section 10 of the CGST Act?"'
+              }
+              className="input-field mb-4"
+              disabled={loading}
+            />
+            <button
+              id="submit-query-btn"
+              type="submit"
+              disabled={loading || !question.trim()}
+              className="btn-primary w-full"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <Search className="w-4 h-4" />
+                  {mode === 'guide' ? 'Get guidance' : 'Search'}
+                </>
+              )}
+            </button>
+          </form>
+        </div>
+
+        {/* ── Loading ─────────────────────────────────────────────── */}
         {loading && (
-          <div className="animate-fade-in space-y-3 mb-8">
-            <div className="loading-spinner h-4 w-3/4 rounded" />
-            <div className="loading-spinner h-4 w-1/2 rounded animate-delay-200" />
-            <div className="loading-spinner h-4 w-5/6 rounded animate-delay-400" />
+          <div className="text-center py-8 animate-enter">
+            <Loader2 className="w-6 h-6 animate-spin mx-auto mb-3" style={{ color: 'var(--indigo)' }} />
+            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+              Searching statutes and case law...
+            </p>
           </div>
         )}
 
-        {/* ── Error ──────────────────────────────────────────────── */}
+        {/* ── Error ───────────────────────────────────────────────── */}
         {error && (
-          <div className="alert-error mb-8 animate-fade-in-up">
-            <AlertCircle className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--accent-rose)' }} />
-            <span className="text-sm">{error}</span>
+          <div className="callout callout-rose flex items-center gap-3 mb-8 animate-enter">
+            <AlertCircle className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--rose)' }} />
+            <p className="text-sm" style={{ color: 'var(--rose)' }}>{error}</p>
           </div>
         )}
 
         {/* ── Results ─────────────────────────────────────────────── */}
         {result && (
-          <div className="animate-fade-in-up">
-            <div className="glass-card-static overflow-hidden">
+          <div className="animate-enter">
+            <div className="card overflow-hidden">
+
               {/* Result Header */}
               <div
                 className="px-6 py-4 flex items-center justify-between"
-                style={{
-                  borderBottom: '1px solid var(--border-subtle)',
-                  background: 'rgba(59, 130, 246, 0.04)',
-                }}
+                style={{ borderBottom: '1px solid var(--border-light)' }}
               >
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-8 h-8 rounded-lg flex items-center justify-center"
-                    style={{
-                      background: 'linear-gradient(135deg, var(--accent-emerald), #059669)',
-                      boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)',
-                    }}
+                <div className="flex items-center gap-2.5">
+                  <CheckCircle className="w-5 h-5" style={{ color: 'var(--emerald)' }} />
+                  <h2
+                    className="text-lg font-semibold"
+                    style={{ color: 'var(--text-heading)', fontFamily: "'Lora', serif" }}
                   >
-                    <CheckCircle className="w-4 h-4 text-white" />
-                  </div>
-                  <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
-                    {mode === 'guide' ? 'Actionable Guidance' : 'Research Results'}
-                  </h3>
+                    {mode === 'guide' ? 'Your Legal Guidance' : 'Research Results'}
+                  </h2>
                 </div>
                 {result.confidence !== undefined && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                      Confidence
-                    </span>
-                    <span className="badge badge-emerald">
-                      {Math.round(result.confidence * 100)}%
-                    </span>
-                  </div>
+                  <span className="tag tag-emerald">
+                    {Math.round(result.confidence * 100)}% confidence
+                  </span>
                 )}
               </div>
 
               {/* Result Body */}
-              <div className="p-6 space-y-6">
+              <div className="p-6 space-y-5">
                 {mode === 'guide' ? (
-                  /* ── Guide Mode Results ─────────────────────── */
                   <>
-                    {/* Situation Summary */}
+                    {/* Situation */}
                     {(result.situation || question) && (
-                      <div className="alert-info animate-fade-in-up">
-                        <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#60a5fa' }}>
+                      <div className="callout callout-blue animate-enter">
+                        <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--indigo)' }}>
                           Your Situation
                         </p>
-                        <p className="text-sm" style={{ color: '#93c5fd' }}>
+                        <p className="text-sm" style={{ color: 'var(--text-body)' }}>
                           {result.situation || question}
                         </p>
                       </div>
@@ -329,11 +277,11 @@ export default function HomePage() {
 
                     {/* Disclaimer */}
                     {result.disclaimer && (
-                      <div className="alert-warning animate-fade-in-up animate-delay-100">
-                        <p className="text-xs font-semibold mb-1" style={{ color: 'var(--accent-gold)' }}>
-                          ⚖️ Disclaimer
+                      <div className="callout callout-amber animate-enter delay-1">
+                        <p className="text-xs font-semibold mb-1" style={{ color: 'var(--amber)' }}>
+                          Disclaimer
                         </p>
-                        <p className="text-sm" style={{ color: '#d4a853cc' }}>
+                        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
                           {result.disclaimer}
                         </p>
                       </div>
@@ -341,17 +289,17 @@ export default function HomePage() {
 
                     {/* Legal Framework */}
                     {result.legal_framework && result.legal_framework.length > 0 && (
-                      <div className="animate-fade-in-up animate-delay-200">
+                      <div className="animate-enter delay-2">
                         <div className="flex items-center gap-2 mb-3">
-                          <BookOpen className="w-4 h-4" style={{ color: 'var(--accent-blue)' }} />
-                          <h4 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                          <BookOpen className="w-4 h-4" style={{ color: 'var(--indigo)' }} />
+                          <h3 className="text-sm font-semibold" style={{ color: 'var(--text-heading)' }}>
                             Applicable Legal Framework
-                          </h4>
+                          </h3>
                         </div>
                         <div className="space-y-2">
                           {result.legal_framework.map((item: LegalFrameworkItem, i: number) => (
-                            <div key={i} className="result-section">
-                              <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                            <div key={i} className="result-block">
+                              <p className="text-sm font-medium" style={{ color: 'var(--text-heading)' }}>
                                 {item.act || item.section}
                               </p>
                               <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
@@ -365,19 +313,19 @@ export default function HomePage() {
 
                     {/* Actionable Steps */}
                     {result.actionable_steps && result.actionable_steps.length > 0 && (
-                      <div className="animate-fade-in-up animate-delay-300">
+                      <div className="animate-enter delay-3">
                         <div className="flex items-center gap-2 mb-3">
-                          <ChevronRight className="w-4 h-4" style={{ color: 'var(--accent-emerald)' }} />
-                          <h4 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                            Actionable Steps
-                          </h4>
+                          <ChevronRight className="w-4 h-4" style={{ color: 'var(--emerald)' }} />
+                          <h3 className="text-sm font-semibold" style={{ color: 'var(--text-heading)' }}>
+                            What You Should Do
+                          </h3>
                         </div>
-                        <div className="space-y-3">
+                        <div className="space-y-2.5">
                           {result.actionable_steps.map((step: ActionableStep, i: number) => (
                             <div key={i} className="step-item">
                               <div className="step-number">{i + 1}</div>
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                                <p className="text-sm font-medium" style={{ color: 'var(--text-heading)' }}>
                                   {step.step || step.title}
                                 </p>
                                 {step.details && (
@@ -385,19 +333,19 @@ export default function HomePage() {
                                     {step.details}
                                   </p>
                                 )}
-                                <div className="flex flex-wrap gap-2 mt-2">
-                                  {step.timeline && (
-                                    <span className="badge badge-blue">
-                                      <Clock className="w-3 h-3 mr-1" />
-                                      {step.timeline}
-                                    </span>
-                                  )}
-                                  {step.authority && (
-                                    <span className="badge badge-gold">
-                                      🏛 {step.authority}
-                                    </span>
-                                  )}
-                                </div>
+                                {(step.timeline || step.authority) && (
+                                  <div className="flex flex-wrap gap-1.5 mt-2">
+                                    {step.timeline && (
+                                      <span className="tag tag-indigo">
+                                        <Clock className="w-3 h-3 mr-1" />
+                                        {step.timeline}
+                                      </span>
+                                    )}
+                                    {step.authority && (
+                                      <span className="tag tag-amber">{step.authority}</span>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           ))}
@@ -407,13 +355,13 @@ export default function HomePage() {
 
                     {/* Key Forms */}
                     {result.key_forms && result.key_forms.length > 0 && (
-                      <div className="animate-fade-in-up animate-delay-400">
-                        <h4 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>
-                          📋 Key Forms & Documents
-                        </h4>
+                      <div className="animate-enter delay-4">
+                        <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-heading)' }}>
+                          Key Forms & Documents
+                        </h3>
                         <div className="grid sm:grid-cols-2 gap-2">
                           {result.key_forms.map((f: string, i: number) => (
-                            <div key={i} className="result-section text-sm" style={{ color: 'var(--text-secondary)' }}>
+                            <div key={i} className="result-block text-sm" style={{ color: 'var(--text-body)' }}>
                               {f}
                             </div>
                           ))}
@@ -423,28 +371,30 @@ export default function HomePage() {
 
                     {/* Next Steps */}
                     {result.next_steps && (
-                      <div className="alert-success animate-fade-in-up animate-delay-400">
-                        <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#34d399' }}>
+                      <div className="callout callout-emerald animate-enter delay-4">
+                        <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--emerald)' }}>
                           Recommended Next Steps
                         </p>
-                        <p className="text-sm" style={{ color: '#6ee7b7' }}>
+                        <p className="text-sm" style={{ color: 'var(--text-body)' }}>
                           {result.next_steps}
                         </p>
                       </div>
                     )}
                   </>
                 ) : (
-                  /* ── Query / Research Mode Results ────────────── */
                   <>
                     {/* Answer */}
                     {result.answer && (
-                      <div className="animate-fade-in-up">
-                        <h4 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>
+                      <div className="animate-enter">
+                        <h3
+                          className="text-sm font-semibold mb-3"
+                          style={{ color: 'var(--text-heading)' }}
+                        >
                           Analysis
-                        </h4>
+                        </h3>
                         <div
                           className="text-sm leading-relaxed"
-                          style={{ color: 'var(--text-secondary)' }}
+                          style={{ color: 'var(--text-body)', lineHeight: 1.75 }}
                         >
                           {result.answer}
                         </div>
@@ -453,17 +403,17 @@ export default function HomePage() {
 
                     {/* Citations */}
                     {result.citations && result.citations.length > 0 && (
-                      <div className="animate-fade-in-up animate-delay-200">
+                      <div className="animate-enter delay-2">
                         <div className="flex items-center gap-2 mb-3">
-                          <BookOpen className="w-4 h-4" style={{ color: 'var(--accent-gold)' }} />
-                          <h4 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                          <BookOpen className="w-4 h-4" style={{ color: 'var(--amber)' }} />
+                          <h3 className="text-sm font-semibold" style={{ color: 'var(--text-heading)' }}>
                             Citations & Sources
-                          </h4>
+                          </h3>
                         </div>
                         <div className="space-y-2">
                           {result.citations.map((c: Citation, i: number) => (
-                            <div key={i} className="result-section">
-                              <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                            <div key={i} className="result-block">
+                              <p className="text-sm font-medium" style={{ color: 'var(--text-heading)' }}>
                                 {c.citation || c.source}
                               </p>
                               {c.excerpt && (
@@ -472,9 +422,7 @@ export default function HomePage() {
                                 </p>
                               )}
                               {c.relevance && (
-                                <div className="mt-1.5">
-                                  <span className="badge badge-blue text-xs">{c.relevance}</span>
-                                </div>
+                                <span className="tag tag-indigo mt-1.5 inline-block">{c.relevance}</span>
                               )}
                             </div>
                           ))}
@@ -482,20 +430,20 @@ export default function HomePage() {
                       </div>
                     )}
 
-                    {/* Confidence Bar */}
+                    {/* Confidence */}
                     {result.confidence !== undefined && (
-                      <div className="animate-fade-in-up animate-delay-300">
+                      <div className="animate-enter delay-3">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                          <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
                             Response Confidence
                           </span>
-                          <span className="text-xs font-semibold" style={{ color: 'var(--accent-emerald)' }}>
+                          <span className="text-xs font-semibold" style={{ color: 'var(--emerald)' }}>
                             {Math.round(result.confidence * 100)}%
                           </span>
                         </div>
-                        <div className="confidence-bar">
+                        <div className="meter-track">
                           <div
-                            className="confidence-bar-fill"
+                            className="meter-fill"
                             style={{ width: `${Math.round(result.confidence * 100)}%` }}
                           />
                         </div>
@@ -510,16 +458,12 @@ export default function HomePage() {
       </main>
 
       {/* ── Footer ────────────────────────────────────────────────── */}
-      <footer
-        className="mt-16 py-6 text-center"
-        style={{ borderTop: '1px solid var(--border-subtle)' }}
-      >
-        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-          ⚖️ Not legal advice. Consult a qualified advocate for your specific matter.
-        </p>
-        <p className="text-xs mt-1" style={{ color: 'rgba(100,116,139,0.5)' }}>
-          Indian Legal Guide v1.0 — Built with AI for accessibility to justice.
-        </p>
+      <footer style={{ borderTop: '1px solid var(--border)' }}>
+        <div className="max-w-3xl mx-auto px-6 py-6 text-center">
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            This tool provides legal information, not legal advice. Consult a qualified advocate for your specific matter.
+          </p>
+        </div>
       </footer>
     </div>
   );
