@@ -155,6 +155,9 @@ export default function HomePage() {
     setQueryResult(null);
 
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 90000); // 90s timeout
+
       if (mode === 'guide') {
         const body: Record<string, unknown> = { situation: question };
         if (Object.keys(clarificationAnswers).length > 0) {
@@ -164,7 +167,9 @@ export default function HomePage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
+          signal: controller.signal,
         });
+        clearTimeout(timeout);
         if (!res.ok) {
           const err = await res.json().catch(() => ({ detail: 'Request failed' }));
           throw new Error(err.detail || `HTTP ${res.status}`);
@@ -176,7 +181,9 @@ export default function HomePage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ question: question }),
+          signal: controller.signal,
         });
+        clearTimeout(timeout);
         if (!res.ok) {
           const err = await res.json().catch(() => ({ detail: 'Request failed' }));
           throw new Error(err.detail || `HTTP ${res.status}`);
@@ -185,8 +192,12 @@ export default function HomePage() {
         setQueryResult(data);
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Something went wrong';
-      setError(message);
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        setError('The server took too long to respond. It may be waking up from sleep — please try again in a minute.');
+      } else {
+        const message = err instanceof Error ? err.message : 'Something went wrong';
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
