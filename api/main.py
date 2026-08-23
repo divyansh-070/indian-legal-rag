@@ -32,7 +32,11 @@ async def lifespan(app: FastAPI):
         print(f"⚠️ Neo4j connection failed (non-fatal): {e}")
         print("   The app will run without graph features.")
     
-    # Warm up LLM
+    
+    # Warm up LLM — print diagnostics first
+    print(f"🔧 LLM config: base_url={llm_service.base_url}")
+    print(f"🔧 LLM config: model={llm_service.model}, fallback={llm_service.fallback_model}")
+    print(f"🔧 LLM config: api_key={'Yes (' + llm_service.api_key[:8] + '...)' if llm_service.api_key else 'NO — MISSING!'}")
     try:
         await llm_service.generate("Test", system="Respond with OK")
         print("✅ Groq LLM ready")

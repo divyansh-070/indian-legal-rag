@@ -77,11 +77,17 @@ class LLMService:
         if max_tokens:
             payload["max_tokens"] = max_tokens
         
-        response = await client.post(
-            f"{self.base_url}/chat/completions",
-            json=payload,
-        )
-        response.raise_for_status()
+        url = f"{self.base_url}/chat/completions"
+        response = await client.post(url, json=payload)
+        
+        if response.status_code != 200:
+            error_body = response.text
+            print(f"❌ LLM API error: HTTP {response.status_code} from {url}")
+            print(f"   Model: {model}")
+            print(f"   API Key configured: {'Yes (' + self.api_key[:8] + '...)' if self.api_key else 'NO — MISSING!'}")
+            print(f"   Response: {error_body[:500]}")
+            response.raise_for_status()
+        
         data = response.json()
         return data["choices"][0]["message"]["content"]
     
