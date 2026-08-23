@@ -18,26 +18,36 @@ async def lifespan(app: FastAPI):
     # Startup
     print("Starting Indian Legal RAG + Guidance API...")
     
-    # Initialize services
-    await vector_store.connect()
-    print("✅ Pinecone connected")
+    # Initialize services — each wrapped so one failure doesn't kill the app
+    try:
+        await vector_store.connect()
+        print("✅ Pinecone connected")
+    except Exception as e:
+        print(f"⚠️ Pinecone connection failed (non-fatal): {e}")
     
-    await graph_store.connect()
-    print("✅ Neo4j connected")
+    try:
+        await graph_store.connect()
+        print("✅ Neo4j connected")
+    except Exception as e:
+        print(f"⚠️ Neo4j connection failed (non-fatal): {e}")
+        print("   The app will run without graph features.")
     
     # Warm up LLM
     try:
         await llm_service.generate("Test", system="Respond with OK")
         print("✅ Groq LLM ready")
     except Exception as e:
-        print(f"⚠ Groq warmup failed: {e}")
+        print(f"⚠️ Groq warmup failed (non-fatal): {e}")
     
     yield
     
     # Shutdown
     print("Shutting down...")
     await vector_store.close()
-    await graph_store.close()
+    try:
+        await graph_store.close()
+    except Exception:
+        pass
     await llm_service.close()
     print("✅ All services closed")
 
