@@ -168,8 +168,17 @@ export default function HomePage() {
         });
         clearTimeout(timeout);
         if (!res.ok) {
-          const err = await res.json().catch(() => ({ detail: 'Request failed' }));
-          throw new Error(err.detail || `HTTP ${res.status}`);
+          let errDetail = '';
+          try {
+            const errJson = await res.json();
+            errDetail = errJson.detail || errJson.message || '';
+          } catch {
+            // Non-JSON response (e.g. gateway error)
+          }
+          if (res.status === 503 || res.status === 502 || res.status === 504) {
+            throw new Error(`The backend server is waking up from hibernation (HTTP ${res.status}). Free instances take ~30–50s to spin up. Please wait 30 seconds and try again.`);
+          }
+          throw new Error(errDetail || `Request failed with HTTP status ${res.status}`);
         }
         const data: GuideApiResponse = await res.json();
         setGuideResult(data);
@@ -182,8 +191,17 @@ export default function HomePage() {
         });
         clearTimeout(timeout);
         if (!res.ok) {
-          const err = await res.json().catch(() => ({ detail: 'Request failed' }));
-          throw new Error(err.detail || `HTTP ${res.status}`);
+          let errDetail = '';
+          try {
+            const errJson = await res.json();
+            errDetail = errJson.detail || errJson.message || '';
+          } catch {
+            // Non-JSON response
+          }
+          if (res.status === 503 || res.status === 502 || res.status === 504) {
+            throw new Error(`The backend server is waking up from hibernation (HTTP ${res.status}). Please wait 30 seconds and try again.`);
+          }
+          throw new Error(errDetail || `Request failed with HTTP status ${res.status}`);
         }
         const data: QueryApiResponse = await res.json();
         setQueryResult(data);
@@ -229,8 +247,17 @@ export default function HomePage() {
       });
       clearTimeout(timeout);
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: 'Request failed' }));
-        throw new Error(err.detail || `HTTP ${res.status}`);
+        let errDetail = '';
+        try {
+          const errJson = await res.json();
+          errDetail = errJson.detail || errJson.message || '';
+        } catch {
+          // Non-JSON response
+        }
+        if (res.status === 503 || res.status === 502 || res.status === 504) {
+          throw new Error(`The backend server is waking up from hibernation (HTTP ${res.status}). Please wait 30 seconds and try again.`);
+        }
+        throw new Error(errDetail || `Request failed with HTTP status ${res.status}`);
       }
       const data: GuideApiResponse = await res.json();
       setGuideResult(data);

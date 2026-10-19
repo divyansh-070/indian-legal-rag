@@ -15,8 +15,15 @@ router = APIRouter(prefix="/health", tags=["health"])
 
 
 @router.get("")
-async def health_check() -> Dict[str, Any]:
-    """Comprehensive health check for all services."""
+async def health_check(detailed: bool = False) -> Dict[str, Any]:
+    """Fast health check for Render / load balancer probes."""
+    if not detailed:
+        return {
+            "status": "healthy",
+            "service": "Indian Legal RAG + Guidance API",
+            "version": "1.0.0",
+        }
+    
     checks = {}
     overall = "healthy"
     
@@ -43,16 +50,16 @@ async def health_check() -> Dict[str, Any]:
         checks["neo4j"] = {"status": "unhealthy", "error": str(e)}
         overall = "degraded"
     
-    # Check Ollama
+    # Check Ollama / LLM
     try:
         await llm_service.generate("ping", system="pong")
-        checks["ollama"] = {
+        checks["llm"] = {
             "status": "healthy",
             "model": settings.OLLAMA_MODEL,
             "fallback": settings.OLLAMA_FALLBACK_MODEL,
         }
     except Exception as e:
-        checks["ollama"] = {"status": "unhealthy", "error": str(e)}
+        checks["llm"] = {"status": "unhealthy", "error": str(e)}
         overall = "degraded"
     
     return {
