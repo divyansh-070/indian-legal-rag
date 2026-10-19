@@ -97,12 +97,12 @@ async def analyze_situation(request: GuideRequest):
                 clarification_needed=True,
                 questions=[
                     {
-                        "id": q.id,
+                        "id": f"q_{i+1}",
                         "question": q.question or "",
                         "why_needed": getattr(q, 'reason', '') or getattr(q, 'why_needed', '') or "",
                         "critical": getattr(q, 'priority', '') == "high" or bool(getattr(q, 'critical', False)),
                     }
-                    for q in (clar.questions or [])
+                    for i, q in enumerate(clar.questions or [])
                 ],
                 can_proceed_without=bool(clar.can_proceed_without),
                 missing_critical_info=clar.missing_critical_info or [],
@@ -162,12 +162,12 @@ async def get_guide(request: GuideRequest):
             clar_dict = {
                 "questions": [
                     {
-                        "id": q.id,
+                        "id": f"q_{i+1}",
                         "question": q.question or "",
                         "why_needed": getattr(q, 'reason', '') or getattr(q, 'why_needed', '') or "",
                         "critical": getattr(q, 'priority', '') == "high" or bool(getattr(q, 'critical', False)),
                     }
-                    for q in (clar.questions or [])
+                    for i, q in enumerate(clar.questions or [])
                 ],
                 "can_proceed_without": bool(clar.can_proceed_without),
                 "missing_critical_info": clar.missing_critical_info or [],

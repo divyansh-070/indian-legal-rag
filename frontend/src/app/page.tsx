@@ -143,7 +143,7 @@ export default function HomePage() {
   const [guideResult, setGuideResult] = useState<GuideApiResponse | null>(null);
   const [queryResult, setQueryResult] = useState<QueryApiResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [clarificationAnswers, setClarificationAnswers] = useState<Record<string, string>>({});
+  const [clarificationAnswers, setClarificationAnswers] = useState<Record<number, string>>({});
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -153,20 +153,17 @@ export default function HomePage() {
     setError(null);
     setGuideResult(null);
     setQueryResult(null);
+    setClarificationAnswers({});
 
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 90000); // 90s timeout
 
       if (mode === 'guide') {
-        const body: Record<string, unknown> = { situation: question };
-        if (Object.keys(clarificationAnswers).length > 0) {
-          body.clarification_answers = clarificationAnswers;
-        }
         const res = await fetch(`${API_URL}/guide`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
+          body: JSON.stringify({ situation: question }),
           signal: controller.signal,
         });
         clearTimeout(timeout);
@@ -209,12 +206,24 @@ export default function HomePage() {
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 90000); // 90s timeout
+
+      // Format answers as question text -> answer mapping
+      const answersPayload: Record<string, string> = {};
+      const questionsList = guideResult?.clarification_response?.questions || [];
+      questionsList.forEach((q, i) => {
+        const val = clarificationAnswers[i];
+        if (val && val.trim()) {
+          const key = q.question || q.id || `Question ${i + 1}`;
+          answersPayload[key] = val.trim();
+        }
+      });
+
       const res = await fetch(`${API_URL}/guide`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           situation: question,
-          clarification_answers: clarificationAnswers,
+          clarification_answers: answersPayload,
         }),
         signal: controller.signal,
       });
@@ -477,11 +486,14 @@ export default function HomePage() {
                           rows={2}
                           className="input-field"
                           placeholder="Your answer..."
-                          value={clarificationAnswers[q.id || `q_${i}`] || ''}
-                          onChange={(e) => setClarificationAnswers(prev => ({
-                            ...prev,
-                            [q.id || `q_${i}`]: e.target.value,
-                          }))}
+                          value={clarificationAnswers[i] || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setClarificationAnswers(prev => ({
+                              ...prev,
+                              [i]: val,
+                            }));
+                          }}
                         />
                       </label>
                     </div>

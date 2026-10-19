@@ -13,11 +13,11 @@ from api.config import settings
 
 class ClarificationQuestion(BaseModel):
     """A targeted clarification question."""
-    id: Optional[str] = Field(default_factory=lambda: f"q_{int(time.time() * 1000)}")
+    id: Optional[str] = None
     question: str
     reason: str  # why this matters legally
-    field: str  # which field in analysis this fills
-    priority: str  # high, medium, low
+    field: Optional[str] = None  # which field in analysis this fills
+    priority: str = "medium"  # high, medium, low
 
 
 class ClarificationResponse(BaseModel):
@@ -67,10 +67,16 @@ class ClarificationAgent:
                 model=self.model,
                 use_fallback=True,
             )
+            # Ensure unique sequential IDs
+            for i, q in enumerate(result.questions):
+                q.id = f"q_{i+1}"
             return result
         except Exception as e:
             # Fallback: basic questions based on common gaps
-            return self._fallback_questions(analysis)
+            fallback = self._fallback_questions(analysis)
+            for i, q in enumerate(fallback.questions):
+                q.id = f"q_{i+1}"
+            return fallback
     
     def _fallback_questions(self, analysis: SituationAnalysis) -> ClarificationResponse:
         """Basic fallback questions based on common missing fields."""

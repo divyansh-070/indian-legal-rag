@@ -121,9 +121,35 @@ class GuidanceSynthesizerAgent:
         return guidance
     
     def _merge_answers(self, analysis: SituationAnalysis, answers: Dict[str, str]) -> SituationAnalysis:
-        """Merge clarification answers into analysis (simplified - in practice, update fields)."""
-        # For now, just append to missing_info resolution
-        # In production, would parse and update specific fields
+        """Merge clarification answers into analysis so synthesized guidance uses the answers."""
+        if not answers:
+            return analysis
+        
+        clarifications = []
+        for q, a in answers.items():
+            if a and str(a).strip():
+                clarifications.append(f"Q: {q}\nA: {str(a).strip()}")
+        
+        if clarifications:
+            clarification_text = "\n\nADDITIONAL DETAILS PROVIDED BY USER IN CLARIFICATION:\n" + "\n".join(clarifications)
+            analysis.summary = f"{analysis.summary}{clarification_text}"
+            
+            # Check if key fields like location, amount, or contract can be updated
+            for q_text, a_val in answers.items():
+                q_lower = str(q_text).lower()
+                a_clean = str(a_val).strip()
+                if any(k in q_lower for k in ["state", "jurisdiction", "location", "city"]):
+                    if not analysis.location or analysis.location.lower() == "not specified":
+                        analysis.location = a_clean
+                if any(k in q_lower for k in ["amount", "deposit", "rent", "fee"]):
+                    if not analysis.amount_involved or analysis.amount_involved.lower() == "not specified":
+                        analysis.amount_involved = a_clean
+                if any(k in q_lower for k in ["written", "agreement", "lease", "contract"]):
+                    if "yes" in a_clean.lower():
+                        analysis.has_written_contract = True
+                    elif "no" in a_clean.lower():
+                        analysis.has_written_contract = False
+        
         return analysis
     
     async def _retrieve_relevant_sources(self, analysis: SituationAnalysis) -> List[RetrievedChunk]:
