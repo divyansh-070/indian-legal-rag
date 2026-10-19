@@ -9,12 +9,26 @@ from typing import Optional
 
 load_dotenv()
 
+DEPRECATED_MODELS_MAP = {
+    "llama-3.1-8b-instant": "openai/gpt-oss-20b",
+    "llama3-8b-8192": "openai/gpt-oss-20b",
+    "llama-3.1-70b-versatile": "openai/gpt-oss-120b",
+    "llama-3.3-70b-versatile": "openai/gpt-oss-120b",
+    "llama3-70b-8192": "openai/gpt-oss-120b",
+}
+
+
+def resolve_model_name(name: Optional[str], default: str) -> str:
+    if not name:
+        return default
+    return DEPRECATED_MODELS_MAP.get(name.strip(), name.strip())
+
 
 class Settings(BaseSettings):
     # Ollama / Groq
     OLLAMA_HOST: str = os.getenv("OLLAMA_HOST", "https://api.groq.com/openai/v1")
-    OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "openai/gpt-oss-20b")
-    OLLAMA_FALLBACK_MODEL: str = os.getenv("OLLAMA_FALLBACK_MODEL", "openai/gpt-oss-120b")
+    OLLAMA_MODEL: str = resolve_model_name(os.getenv("OLLAMA_MODEL"), "openai/gpt-oss-20b")
+    OLLAMA_FALLBACK_MODEL: str = resolve_model_name(os.getenv("OLLAMA_FALLBACK_MODEL"), "openai/gpt-oss-120b")
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
     OLLAMA_NUM_CTX: int = int(os.getenv("OLLAMA_NUM_CTX", "32768"))
     OLLAMA_NUM_PREDICT: int = int(os.getenv("OLLAMA_NUM_PREDICT", "4096"))

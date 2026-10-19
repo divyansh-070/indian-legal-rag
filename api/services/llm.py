@@ -12,7 +12,7 @@ from pydantic import BaseModel, ValidationError
 import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from api.config import settings
+from api.config import settings, resolve_model_name
 
 
 T = TypeVar("T", bound=BaseModel)
@@ -29,8 +29,8 @@ class LLMService:
         timeout: float = 120.0,
     ):
         self.base_url = (base_url or settings.OLLAMA_HOST).rstrip("/")
-        self.model = model or settings.OLLAMA_MODEL
-        self.fallback_model = fallback_model or settings.OLLAMA_FALLBACK_MODEL
+        self.model = resolve_model_name(model or settings.OLLAMA_MODEL, "openai/gpt-oss-20b")
+        self.fallback_model = resolve_model_name(fallback_model or settings.OLLAMA_FALLBACK_MODEL, "openai/gpt-oss-120b")
         self.timeout = timeout
         self._client: Optional[httpx.AsyncClient] = None
         # Auth: check for GROQ_API_KEY or OPENROUTER_API_KEY in settings / env
@@ -65,7 +65,7 @@ class LLMService:
     ) -> str:
         """Call the OpenAI-compatible /chat/completions endpoint with automatic 429 backoff."""
         client = await self._get_client()
-        model = model or self.model
+        model = resolve_model_name(model or self.model, "openai/gpt-oss-20b")
         
         payload: Dict[str, Any] = {
             "model": model,
