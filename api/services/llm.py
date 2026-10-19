@@ -30,17 +30,33 @@ class LLMService:
     ):
         self.base_url = (base_url or settings.OLLAMA_HOST).rstrip("/")
         self.model = resolve_model_name(model or settings.OLLAMA_MODEL, "openai/gpt-oss-20b")
-        self.fallback_model = resolve_model_name(fallback_model or settings.OLLAMA_FALLBACK_MODEL, "openai/gpt-oss-120b")
+        self.fallback_model = resolve_model_name(fallback_model or settings.OLLAMA_FALLBACK_MODEL, "qwen/qwen3.8-27b")
         self.timeout = timeout
         self._client: Optional[httpx.AsyncClient] = None
-        # Auth: check for GROQ_API_KEY or OPENROUTER_API_KEY in settings / env
-        self.api_key = (
+        
+        # Support single key or comma-separated keys for automatic key rotation
+        raw_keys = (
             getattr(settings, "GROQ_API_KEY", "")
             or os.getenv("GROQ_API_KEY")
+            or os.getenv("GROQ_API_KEYS")
             or os.getenv("OPENROUTER_API_KEY")
             or os.getenv("OPENAI_API_KEY")
             or ""
         )
+        self.api_keys: List[str] = [k.strip() for k in raw_keys.split(",") if k.strip()]
+        self.current_key_idx: int = 0
+    
+    @property
+    def api_key(self) -> str:
+        if not self.api_keys:
+            return ""
+        return self.api_keys[self.current_key_idx % len(self.api_keys)]
+    
+    def rotate_api_key(self):
+        if len(self.api_keys) > 1:
+            self.current_key_idx = (self.current_key_idx + 1) % len(self.api_keys)
+            print(f"[AUTH] Rotated to next API key ({self.current_key_idx + 1}/{len(self.api_keys)}: {self.api_key[:8]}...)")
+            self._client = None
     
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None:
@@ -61,10 +77,9 @@ class LLMService:
         model: str = None,
         temperature: float = 0.1,
         max_tokens: int = None,
-        max_retries: int = 4,
+        max_retries: int = 3,
     ) -> str:
-        """Call the OpenAI-compatible /chat/completions endpoint with automatic 429 backoff."""
-        client = await self._get_client()
+        """Call the OpenAI-compatible /chat/completions endpoint with automatic 429 backoff / key rotation."""
         model = resolve_model_name(model or self.model, "openai/gpt-oss-20b")
         
         payload: Dict[str, Any] = {
@@ -78,6 +93,7 @@ class LLMService:
         url = f"{self.base_url}/chat/completions"
         
         for attempt in range(max_retries):
+            client = await self._get_client()
             response = await client.post(url, json=payload)
             
             if response.status_code == 200:
@@ -85,8 +101,14 @@ class LLMService:
                 return data["choices"][0]["message"]["content"]
             
             # Handle rate limit (HTTP 429) gracefully
-            if response.status_code == 429 and attempt < max_retries - 1:
-                wait_seconds = 7.0
+            if response.status_code == 429:
+                # If we have multiple API keys, rotate to the next key immediately!
+                if len(self.api_keys) > 1 and attempt < max_retries - 1:
+                    print(f"[RATE LIMIT] 429 hit on key {self.api_key[:8]}... Rotating to next key.")
+                    self.rotate_api_key()
+                    continue
+                
+                wait_seconds = 4.0
                 try:
                     if "retry-after" in response.headers:
                         wait_seconds = float(response.headers["retry-after"]) + 0.5
@@ -99,9 +121,16 @@ class LLMService:
                 except Exception:
                     pass
                 
-                print(f"[RATE LIMIT] Groq 429 limit hit. Waiting {wait_seconds:.1f}s before retry (attempt {attempt + 1}/{max_retries})...")
-                await asyncio.sleep(wait_seconds)
-                continue
+                # If retry delay is short (<= 8s), wait briefly and retry
+                if wait_seconds <= 8.0 and attempt < max_retries - 1:
+                    print(f"[RATE LIMIT] Brief Groq 429 limit hit. Waiting {wait_seconds:.1f}s before retry (attempt {attempt + 1}/{max_retries})...")
+                    await asyncio.sleep(wait_seconds)
+                    continue
+                else:
+                    # Daily quota hit or long rate limit (>8s wait).
+                    # Fail fast so caller can switch to fallback model immediately!
+                    print(f"[RATE LIMIT] Groq 429 requires long wait ({wait_seconds:.1f}s). Failing fast to activate fallback model.")
+                    response.raise_for_status()
             
             error_body = response.text
             print(f"[ERROR] LLM API error: HTTP {response.status_code} from {url}")
@@ -117,16 +146,18 @@ class LLMService:
         model: str = None,
         use_fallback: bool = True,
     ) -> str:
-        """Generate text response."""
+        """Generate text response with automatic fallback to secondary model."""
         messages = []
         if system:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
         
+        target_model = resolve_model_name(model or self.model, "openai/gpt-oss-20b")
         try:
-            return await self._chat_completion(messages, model=model)
+            return await self._chat_completion(messages, model=target_model)
         except Exception as e:
-            if use_fallback and model != self.fallback_model:
+            if use_fallback and target_model != self.fallback_model:
+                print(f"[FALLBACK] Primary model '{target_model}' failed ({e}). Switching to fallback model '{self.fallback_model}'...")
                 return await self._chat_completion(messages, model=self.fallback_model)
             raise
     

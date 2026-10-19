@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     # Ollama / Groq
     OLLAMA_HOST: str = os.getenv("OLLAMA_HOST", "https://api.groq.com/openai/v1")
     OLLAMA_MODEL: str = resolve_model_name(os.getenv("OLLAMA_MODEL"), "openai/gpt-oss-20b")
-    OLLAMA_FALLBACK_MODEL: str = resolve_model_name(os.getenv("OLLAMA_FALLBACK_MODEL"), "openai/gpt-oss-120b")
+    OLLAMA_FALLBACK_MODEL: str = resolve_model_name(os.getenv("OLLAMA_FALLBACK_MODEL"), "qwen/qwen3.8-27b")
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
     OLLAMA_NUM_CTX: int = int(os.getenv("OLLAMA_NUM_CTX", "32768"))
     OLLAMA_NUM_PREDICT: int = int(os.getenv("OLLAMA_NUM_PREDICT", "4096"))
