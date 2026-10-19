@@ -172,7 +172,7 @@ class GuidanceSynthesizerAgent:
                 seen.add(c.id)
                 unique_chunks.append(c)
         
-        return unique_chunks[:20]  # Limit total chunks
+        return unique_chunks[:6]  # Limit total chunks for focused synthesis and token budget
     
     async def _generate_guidance(
         self,
@@ -209,42 +209,6 @@ IDENTIFIED LEGAL ISSUES:
 
 RELEVANT LEGAL SOURCES (cite these using [1], [2] format):
 {context}
-
-Generate guidance in this EXACT JSON structure:
-{{
-  "situation_summary": "2-3 sentence plain-language summary",
-  "applicable_laws": ["Act Name 1", "Act Name 2"],
-  "immediate_steps": [
-    {{"step": "action", "reason": "why", "deadline": "timeframe or null", "do_it_yourself": true/false}}
-  ],
-  "legal_options": [
-    {{
-      "name": "Option name",
-      "description": "What this entails",
-      "applicable_act": "Act name",
-      "key_sections": ["Section X", "Section Y"],
-      "estimated_cost": "free/low/medium/high/very_high",
-      "estimated_time": "e.g., 30-60 days",
-      "success_likelihood": "high/medium/low",
-      "pros": ["pro1", "pro2"],
-      "cons": ["con1", "con2"],
-      "prerequisites": ["what's needed to pursue"]
-    }}
-  ],
-  "red_flags": [
-    {{"flag": "warning", "severity": "critical/high/medium", "explanation": "why", "mitigation": "what to do"}}
-  ],
-  "when_lawyer_needed": [
-    {{"scenario": "when", "reason": "why", "estimated_cost_range": "range"}}
-  ],
-  "sources": [
-    {{"act": "Act Name", "section": "Section X", "description": "what it covers", "citation_id": "[1]"}}
-  ],
-  "limitation_periods": [
-    {{"act": "Act Name", "period": "e.g., 3 years", "from_when": "e.g., date of breach"}}
-  ],
-  "jurisdiction": "City, State (court forum)"
-}}
 
 RULES:
 1. Every legal assertion MUST cite sources using [1], [2] matching the provided sources
@@ -313,7 +277,7 @@ RULES:
                 header += f"({chunk.court}) "
             header += f"({chunk.source}, score: {chunk.score:.2f}):\n"
             
-            parts.append(f"{header}{chunk.text}\n")
+            parts.append(f"{header}{chunk.text[:1200]}\n")
         
         return "\n---\n\n".join(parts)
     

@@ -118,6 +118,8 @@ class HybridRetriever:
         max_hops: int = 2,
     ) -> List[RetrievedChunk]:
         """Graph-based retrieval via Neo4j."""
+        if not getattr(graph_store, "_driver", None):
+            return []
         # Extract key entities from query
         entities = await self._extract_entities(query)
        
@@ -183,42 +185,8 @@ class HybridRetriever:
         return graph_chunks
    
     async def _extract_entities(self, query: str) -> List[Dict[str, Any]]:
-        """Extract legal entities from query using LLM."""
-        from pydantic import BaseModel
-        from typing import List, Optional
-       
-        class Entity(BaseModel):
-            type: str  # "act" | "section" | "case_law" | "term"
-            act: Optional[str] = None
-            section: Optional[str] = None
-            citation: Optional[str] = None
-            term: Optional[str] = None
-       
-        class EntityList(BaseModel):
-            entities: List[Entity]
-       
-        prompt = f"""Extract legal entities from this query about Indian law:
-
-Query: "{query}"
-
-Identify:
-1. Acts mentioned (e.g., "GST Act", "Companies Act 2013", "Income Tax Act")
-2. Specific sections (e.g., "Section 16", "Section 44AD(1)")
-3. Case law citations (e.g., "2023 SCC 5 123", "AIR 2022 SC 456")
-4. Key legal terms for definition lookup
-
-Return as JSON with entities array."""
-       
-        try:
-            result = await llm_service.generate_structured(
-                prompt=prompt,
-                response_model=EntityList,
-                system="You are a legal entity extractor for Indian law. Be precise.",
-            )
-            return [e.model_dump() for e in result.entities]
-        except Exception:
-            # Fallback: simple regex extraction
-            return self._fallback_entity_extraction(query)
+        """Extract legal entities from query using fast pattern matching."""
+        return self._fallback_entity_extraction(query)
    
     def _fallback_entity_extraction(self, query: str) -> List[Dict[str, Any]]:
         """Regex-based fallback entity extraction."""

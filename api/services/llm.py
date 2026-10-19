@@ -33,9 +33,10 @@ class LLMService:
         self.fallback_model = fallback_model or settings.OLLAMA_FALLBACK_MODEL
         self.timeout = timeout
         self._client: Optional[httpx.AsyncClient] = None
-        # Auth: check for GROQ_API_KEY or OPENROUTER_API_KEY in env
+        # Auth: check for GROQ_API_KEY or OPENROUTER_API_KEY in settings / env
         self.api_key = (
-            os.getenv("GROQ_API_KEY")
+            getattr(settings, "GROQ_API_KEY", "")
+            or os.getenv("GROQ_API_KEY")
             or os.getenv("OPENROUTER_API_KEY")
             or os.getenv("OPENAI_API_KEY")
             or ""
@@ -54,18 +55,15 @@ class LLMService:
             await self._client.aclose()
             self._client = None
     
-    @retry(
-        stop=stop_after_attempt(2),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
-    )
     async def _chat_completion(
         self,
         messages: List[Dict[str, str]],
         model: str = None,
         temperature: float = 0.1,
         max_tokens: int = None,
+        max_retries: int = 4,
     ) -> str:
-        """Call the OpenAI-compatible /chat/completions endpoint."""
+        """Call the OpenAI-compatible /chat/completions endpoint with automatic 429 backoff."""
         client = await self._get_client()
         model = model or self.model
         
@@ -78,18 +76,39 @@ class LLMService:
             payload["max_tokens"] = max_tokens
         
         url = f"{self.base_url}/chat/completions"
-        response = await client.post(url, json=payload)
         
-        if response.status_code != 200:
+        for attempt in range(max_retries):
+            response = await client.post(url, json=payload)
+            
+            if response.status_code == 200:
+                data = response.json()
+                return data["choices"][0]["message"]["content"]
+            
+            # Handle rate limit (HTTP 429) gracefully
+            if response.status_code == 429 and attempt < max_retries - 1:
+                wait_seconds = 7.0
+                try:
+                    if "retry-after" in response.headers:
+                        wait_seconds = float(response.headers["retry-after"]) + 0.5
+                    else:
+                        import re
+                        msg = response.json().get("error", {}).get("message", "")
+                        match = re.search(r"try again in ([\d\.]+)s", msg)
+                        if match:
+                            wait_seconds = float(match.group(1)) + 1.0
+                except Exception:
+                    pass
+                
+                print(f"[RATE LIMIT] Groq 429 limit hit. Waiting {wait_seconds:.1f}s before retry (attempt {attempt + 1}/{max_retries})...")
+                await asyncio.sleep(wait_seconds)
+                continue
+            
             error_body = response.text
-            print(f"❌ LLM API error: HTTP {response.status_code} from {url}")
+            print(f"[ERROR] LLM API error: HTTP {response.status_code} from {url}")
             print(f"   Model: {model}")
             print(f"   API Key configured: {'Yes (' + self.api_key[:8] + '...)' if self.api_key else 'NO — MISSING!'}")
             print(f"   Response: {error_body[:500]}")
             response.raise_for_status()
-        
-        data = response.json()
-        return data["choices"][0]["message"]["content"]
     
     async def generate(
         self,

@@ -3,15 +3,19 @@ Configuration for Indian Legal RAG + Guidance API.
 """
 
 import os
+from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
+
+load_dotenv()
 
 
 class Settings(BaseSettings):
     # Ollama / Groq
     OLLAMA_HOST: str = os.getenv("OLLAMA_HOST", "https://api.groq.com/openai/v1")
-    OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "llama-3.1-8b-instant")
-    OLLAMA_FALLBACK_MODEL: str = os.getenv("OLLAMA_FALLBACK_MODEL", "llama-3.1-70b-versatile")
+    OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "openai/gpt-oss-20b")
+    OLLAMA_FALLBACK_MODEL: str = os.getenv("OLLAMA_FALLBACK_MODEL", "openai/gpt-oss-120b")
+    GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
     OLLAMA_NUM_CTX: int = int(os.getenv("OLLAMA_NUM_CTX", "32768"))
     OLLAMA_NUM_PREDICT: int = int(os.getenv("OLLAMA_NUM_PREDICT", "4096"))
     OLLAMA_TEMPERATURE: float = float(os.getenv("OLLAMA_TEMPERATURE", "0.1"))
@@ -50,7 +54,7 @@ class Settings(BaseSettings):
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("JWT_REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 
     # CORS
-    CORS_ORIGINS: str = os.getenv("CORS_ORIGINS", "http://localhost:3000")
+    CORS_ORIGINS: str = os.getenv("CORS_ORIGINS", "http://localhost:3000,https://frontend-sigma-lemon-20.vercel.app,https://indian-legal-rag.vercel.app")
 
     # Rate limiting
     RATE_LIMIT_GUEST: int = int(os.getenv("RATE_LIMIT_GUEST", "5"))
