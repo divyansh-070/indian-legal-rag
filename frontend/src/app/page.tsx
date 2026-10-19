@@ -6,89 +6,89 @@ import { Search, Scale, Lightbulb, Loader2, AlertCircle, CheckCircle, Clock, Boo
 /* ── Types matching actual API responses ──────────────────────────── */
 
 interface LegalIssue {
-  issue: string;
-  category: string;
-  applicable_acts: string[];
-  key_sections: string[];
-  urgency: string;
+  issue?: string;
+  category?: string;
+  applicable_acts?: string[];
+  key_sections?: string[];
+  urgency?: string;
 }
 
 interface SituationAnalysis {
-  summary: string;
-  user_role: string;
-  counterparty_role: string;
-  location: string;
-  amount_involved: string;
-  has_written_contract: boolean;
-  timeline: string;
-  legal_issues: LegalIssue[];
-  missing_info: string[];
+  summary?: string;
+  user_role?: string;
+  counterparty_role?: string;
+  location?: string;
+  amount_involved?: string;
+  has_written_contract?: boolean;
+  timeline?: string;
+  legal_issues?: LegalIssue[];
+  missing_info?: string[];
 }
 
 interface ClarificationQuestion {
-  id: string | null;
-  question: string;
-  why_needed: string;
-  critical: boolean;
+  id?: string | null;
+  question?: string;
+  why_needed?: string;
+  critical?: boolean;
 }
 
 interface ClarificationResponse {
-  questions: ClarificationQuestion[];
-  can_proceed_without: boolean;
-  missing_critical_info: string[];
+  questions?: ClarificationQuestion[];
+  can_proceed_without?: boolean;
+  missing_critical_info?: string[];
 }
 
 interface ImmediateStep {
-  step: string;
-  reason: string;
-  deadline: string | null;
-  do_it_yourself: boolean;
+  step?: string;
+  reason?: string;
+  deadline?: string | null;
+  do_it_yourself?: boolean;
 }
 
 interface LegalOption {
-  name: string;
-  description: string;
-  applicable_act: string;
-  key_sections: string[];
-  estimated_cost: string;
-  estimated_time: string;
-  success_likelihood: string;
-  pros: string[];
-  cons: string[];
-  prerequisites: string[];
+  name?: string;
+  description?: string;
+  applicable_act?: string;
+  key_sections?: string[];
+  estimated_cost?: string;
+  estimated_time?: string;
+  success_likelihood?: string;
+  pros?: string[];
+  cons?: string[];
+  prerequisites?: string[];
 }
 
 interface RedFlag {
-  flag: string;
-  severity: string;
-  explanation: string;
-  mitigation: string | null;
+  flag?: string;
+  severity?: string;
+  explanation?: string;
+  mitigation?: string | null;
 }
 
 interface WhenLawyerNeeded {
-  scenario: string;
-  reason: string;
-  estimated_cost_range: string;
+  scenario?: string;
+  reason?: string;
+  estimated_cost_range?: string;
 }
 
 interface GuidanceData {
-  situation_summary: string;
-  applicable_laws: string[];
-  immediate_steps: ImmediateStep[];
-  legal_options: LegalOption[];
-  red_flags: RedFlag[];
-  when_lawyer_needed: WhenLawyerNeeded[];
-  sources: Record<string, string>[];
-  limitation_periods: Record<string, string>[];
-  jurisdiction: string;
+  situation_summary?: string;
+  applicable_laws?: string[];
+  immediate_steps?: ImmediateStep[];
+  legal_options?: LegalOption[];
+  red_flags?: RedFlag[];
+  when_lawyer_needed?: WhenLawyerNeeded[];
+  sources?: Record<string, string>[];
+  limitation_periods?: Record<string, string>[];
+  jurisdiction?: string;
 }
 
 interface GuideApiResponse {
-  situation_analysis: SituationAnalysis;
-  clarification_response: ClarificationResponse | null;
-  guidance: GuidanceData | null;
+  situation_analysis?: SituationAnalysis | null;
+  clarification_response?: ClarificationResponse | null;
+  guidance?: GuidanceData | null;
   status: 'needs_clarification' | 'complete' | 'error';
-  error: string | null;
+  error?: string | null;
 }
 
 interface QuerySection {
@@ -207,6 +207,8 @@ export default function HomePage() {
     setLoading(true);
     setError(null);
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 90000); // 90s timeout
       const res = await fetch(`${API_URL}/guide`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -214,7 +216,9 @@ export default function HomePage() {
           situation: question,
           clarification_answers: clarificationAnswers,
         }),
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: 'Request failed' }));
         throw new Error(err.detail || `HTTP ${res.status}`);
@@ -223,8 +227,12 @@ export default function HomePage() {
       setGuideResult(data);
       setClarificationAnswers({});
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Something went wrong';
-      setError(message);
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        setError('The server took too long to synthesize guidance. It may be under heavy load — please try again.');
+      } else {
+        const message = err instanceof Error ? err.message : 'Something went wrong';
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -373,18 +381,20 @@ export default function HomePage() {
                   </h2>
                 </div>
                 <div className="p-6 space-y-4">
-                  <p className="text-sm" style={{ color: 'var(--text-body)', lineHeight: 1.7 }}>
-                    {guideResult.situation_analysis.summary}
-                  </p>
+                  {guideResult.situation_analysis.summary && (
+                    <p className="text-sm" style={{ color: 'var(--text-body)', lineHeight: 1.7 }}>
+                      {guideResult.situation_analysis.summary}
+                    </p>
+                  )}
 
                   <div className="grid sm:grid-cols-2 gap-3">
                     <div className="result-block">
                       <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Your Role</p>
-                      <p className="text-sm font-medium" style={{ color: 'var(--text-heading)' }}>{guideResult.situation_analysis.user_role}</p>
+                      <p className="text-sm font-medium" style={{ color: 'var(--text-heading)' }}>{guideResult.situation_analysis.user_role || 'Not specified'}</p>
                     </div>
                     <div className="result-block">
                       <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Other Party</p>
-                      <p className="text-sm font-medium" style={{ color: 'var(--text-heading)' }}>{guideResult.situation_analysis.counterparty_role}</p>
+                      <p className="text-sm font-medium" style={{ color: 'var(--text-heading)' }}>{guideResult.situation_analysis.counterparty_role || 'Not specified'}</p>
                     </div>
                     <div className="result-block">
                       <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Location</p>
@@ -397,7 +407,7 @@ export default function HomePage() {
                   </div>
 
                   {/* Legal Issues Identified */}
-                  {guideResult.situation_analysis.legal_issues.length > 0 && (
+                  {(guideResult.situation_analysis.legal_issues || []).length > 0 && (
                     <div>
                       <div className="flex items-center gap-2 mb-3">
                         <BookOpen className="w-4 h-4" style={{ color: 'var(--indigo)' }} />
@@ -406,21 +416,28 @@ export default function HomePage() {
                         </h3>
                       </div>
                       <div className="space-y-2">
-                        {guideResult.situation_analysis.legal_issues.map((issue, i) => (
-                          <div key={i} className="result-block">
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <p className="text-sm font-medium" style={{ color: 'var(--text-heading)' }}>{issue.issue}</p>
-                                <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
-                                  {issue.applicable_acts.join(', ')} — {issue.key_sections.join(', ')}
-                                </p>
+                        {(guideResult.situation_analysis.legal_issues || []).map((issue, i) => {
+                          const acts = (issue.applicable_acts || []).filter(Boolean);
+                          const sections = (issue.key_sections || []).filter(Boolean);
+                          const citationText = [acts.join(', '), sections.join(', ')].filter(Boolean).join(' — ');
+                          return (
+                            <div key={i} className="result-block">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-medium" style={{ color: 'var(--text-heading)' }}>{issue.issue || 'Identified Issue'}</p>
+                                  {citationText && (
+                                    <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+                                      {citationText}
+                                    </p>
+                                  )}
+                                </div>
+                                <span className={`tag ${issue.urgency === 'High' ? 'tag-rose' : issue.urgency === 'Medium' ? 'tag-amber' : 'tag-indigo'}`}>
+                                  {issue.urgency || 'Medium'}
+                                </span>
                               </div>
-                              <span className={`tag ${issue.urgency === 'High' ? 'tag-rose' : issue.urgency === 'Medium' ? 'tag-amber' : 'tag-indigo'}`}>
-                                {issue.urgency}
-                              </span>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -442,7 +459,7 @@ export default function HomePage() {
                     Answer these to get more accurate and actionable guidance. You can skip optional ones.
                   </p>
 
-                  {guideResult.clarification_response.questions.map((q, i) => (
+                  {(guideResult.clarification_response.questions || []).map((q, i) => (
                     <div key={i} className="space-y-2">
                       <label className="block">
                         <div className="flex items-start gap-2 mb-1.5">
@@ -451,9 +468,11 @@ export default function HomePage() {
                           </span>
                           {q.critical && <span className="tag tag-rose">Required</span>}
                         </div>
-                        <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
-                          Why this matters: {q.why_needed}
-                        </p>
+                        {q.why_needed && (
+                          <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
+                            Why this matters: {q.why_needed}
+                          </p>
+                        )}
                         <textarea
                           rows={2}
                           className="input-field"
@@ -468,11 +487,11 @@ export default function HomePage() {
                     </div>
                   ))}
 
-                  {guideResult.clarification_response.missing_critical_info && guideResult.clarification_response.missing_critical_info.length > 0 && (
+                  {(guideResult.clarification_response.missing_critical_info || []).length > 0 && (
                     <div className="callout callout-amber">
                       <p className="text-xs font-semibold mb-1" style={{ color: 'var(--amber)' }}>Missing Critical Information</p>
                       <p className="text-sm" style={{ color: 'var(--text-body)' }}>
-                        {guideResult.clarification_response.missing_critical_info.join(', ')}
+                        {(guideResult.clarification_response.missing_critical_info || []).join(', ')}
                       </p>
                     </div>
                   )}
@@ -509,20 +528,22 @@ export default function HomePage() {
                 </div>
                 <div className="p-6 space-y-6">
                   {/* Summary */}
-                  <div className="callout callout-blue">
-                    <p className="text-sm" style={{ color: 'var(--text-body)', lineHeight: 1.7 }}>
-                      {guideResult.guidance.situation_summary}
-                    </p>
-                  </div>
+                  {guideResult.guidance.situation_summary && (
+                    <div className="callout callout-blue">
+                      <p className="text-sm" style={{ color: 'var(--text-body)', lineHeight: 1.7 }}>
+                        {guideResult.guidance.situation_summary}
+                      </p>
+                    </div>
+                  )}
 
                   {/* Applicable Laws */}
-                  {guideResult.guidance.applicable_laws.length > 0 && (
+                  {(guideResult.guidance.applicable_laws || []).length > 0 && (
                     <div>
                       <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-heading)' }}>
                         Applicable Laws
                       </h3>
                       <div className="flex flex-wrap gap-1.5">
-                        {guideResult.guidance.applicable_laws.map((law, i) => (
+                        {(guideResult.guidance.applicable_laws || []).map((law, i) => (
                           <span key={i} className="tag tag-indigo">{law}</span>
                         ))}
                       </div>
@@ -530,7 +551,7 @@ export default function HomePage() {
                   )}
 
                   {/* Immediate Steps */}
-                  {guideResult.guidance.immediate_steps.length > 0 && (
+                  {(guideResult.guidance.immediate_steps || []).length > 0 && (
                     <div>
                       <div className="flex items-center gap-2 mb-3">
                         <ChevronRight className="w-4 h-4" style={{ color: 'var(--emerald)' }} />
@@ -539,12 +560,14 @@ export default function HomePage() {
                         </h3>
                       </div>
                       <div className="space-y-2.5">
-                        {guideResult.guidance.immediate_steps.map((step, i) => (
+                        {(guideResult.guidance.immediate_steps || []).map((step, i) => (
                           <div key={i} className="step-item">
                             <div className="step-number">{i + 1}</div>
                             <div className="flex-1">
                               <p className="text-sm font-medium" style={{ color: 'var(--text-heading)' }}>{step.step}</p>
-                              <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>{step.reason}</p>
+                              {step.reason && (
+                                <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>{step.reason}</p>
+                              )}
                               <div className="flex flex-wrap gap-1.5 mt-2">
                                 {step.deadline && <span className="tag tag-amber"><Clock className="w-3 h-3 mr-1" />{step.deadline}</span>}
                                 <span className={`tag ${step.do_it_yourself ? 'tag-emerald' : 'tag-indigo'}`}>
@@ -559,7 +582,7 @@ export default function HomePage() {
                   )}
 
                   {/* Legal Options */}
-                  {guideResult.guidance.legal_options.length > 0 && (
+                  {(guideResult.guidance.legal_options || []).length > 0 && (
                     <div>
                       <div className="flex items-center gap-2 mb-3">
                         <Scale className="w-4 h-4" style={{ color: 'var(--indigo)' }} />
@@ -568,48 +591,61 @@ export default function HomePage() {
                         </h3>
                       </div>
                       <div className="space-y-3">
-                        {guideResult.guidance.legal_options.map((opt, i) => (
-                          <div key={i} className="card p-4">
-                            <div className="flex items-start justify-between gap-3 mb-2">
-                              <h4 className="text-sm font-semibold" style={{ color: 'var(--text-heading)' }}>{opt.name}</h4>
-                              <span className={`tag ${opt.success_likelihood === 'high' ? 'tag-emerald' : opt.success_likelihood === 'medium' ? 'tag-amber' : 'tag-rose'}`}>
-                                {opt.success_likelihood} success
-                              </span>
-                            </div>
-                            <p className="text-xs mb-3" style={{ color: 'var(--text-secondary)' }}>{opt.description}</p>
-                            <div className="flex flex-wrap gap-3 text-xs" style={{ color: 'var(--text-muted)' }}>
-                              <span><DollarSign className="w-3 h-3 inline" /> {opt.estimated_cost}</span>
-                              <span><Clock className="w-3 h-3 inline" /> {opt.estimated_time}</span>
-                              <span><BookOpen className="w-3 h-3 inline" /> {opt.applicable_act}</span>
-                            </div>
-                            {(opt.pros.length > 0 || opt.cons.length > 0) && (
-                              <div className="grid sm:grid-cols-2 gap-3 mt-3">
-                                {opt.pros.length > 0 && (
-                                  <div className="text-xs">
-                                    <p className="font-semibold mb-1" style={{ color: 'var(--emerald)' }}>Pros</p>
-                                    <ul className="space-y-0.5" style={{ color: 'var(--text-secondary)' }}>
-                                      {opt.pros.map((p, j) => <li key={j}>+ {p}</li>)}
-                                    </ul>
-                                  </div>
+                        {(guideResult.guidance.legal_options || []).map((opt, i) => {
+                          const pros = opt.pros || [];
+                          const cons = opt.cons || [];
+                          const sections = (opt.key_sections || []).filter(Boolean);
+                          return (
+                            <div key={i} className="card p-4">
+                              <div className="flex items-start justify-between gap-3 mb-2">
+                                <h4 className="text-sm font-semibold" style={{ color: 'var(--text-heading)' }}>{opt.name}</h4>
+                                <span className={`tag ${opt.success_likelihood === 'high' ? 'tag-emerald' : opt.success_likelihood === 'medium' ? 'tag-amber' : 'tag-rose'}`}>
+                                  {opt.success_likelihood || 'medium'} success
+                                </span>
+                              </div>
+                              {opt.description && (
+                                <p className="text-xs mb-3" style={{ color: 'var(--text-secondary)' }}>{opt.description}</p>
+                              )}
+                              <div className="flex flex-wrap gap-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+                                {opt.estimated_cost && (
+                                  <span><DollarSign className="w-3 h-3 inline" /> {opt.estimated_cost}</span>
                                 )}
-                                {opt.cons.length > 0 && (
-                                  <div className="text-xs">
-                                    <p className="font-semibold mb-1" style={{ color: 'var(--rose)' }}>Cons</p>
-                                    <ul className="space-y-0.5" style={{ color: 'var(--text-secondary)' }}>
-                                      {opt.cons.map((c, j) => <li key={j}>− {c}</li>)}
-                                    </ul>
-                                  </div>
+                                {opt.estimated_time && (
+                                  <span><Clock className="w-3 h-3 inline" /> {opt.estimated_time}</span>
+                                )}
+                                {opt.applicable_act && (
+                                  <span><BookOpen className="w-3 h-3 inline" /> {opt.applicable_act}{sections.length > 0 ? ` (${sections.join(', ')})` : ''}</span>
                                 )}
                               </div>
-                            )}
-                          </div>
-                        ))}
+                              {(pros.length > 0 || cons.length > 0) && (
+                                <div className="grid sm:grid-cols-2 gap-3 mt-3">
+                                  {pros.length > 0 && (
+                                    <div className="text-xs">
+                                      <p className="font-semibold mb-1" style={{ color: 'var(--emerald)' }}>Pros</p>
+                                      <ul className="space-y-0.5" style={{ color: 'var(--text-secondary)' }}>
+                                        {pros.map((p, j) => <li key={j}>+ {p}</li>)}
+                                      </ul>
+                                    </div>
+                                  )}
+                                  {cons.length > 0 && (
+                                    <div className="text-xs">
+                                      <p className="font-semibold mb-1" style={{ color: 'var(--rose)' }}>Cons</p>
+                                      <ul className="space-y-0.5" style={{ color: 'var(--text-secondary)' }}>
+                                        {cons.map((c, j) => <li key={j}>− {c}</li>)}
+                                      </ul>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
 
                   {/* Red Flags */}
-                  {guideResult.guidance.red_flags.length > 0 && (
+                  {(guideResult.guidance.red_flags || []).length > 0 && (
                     <div>
                       <div className="flex items-center gap-2 mb-3">
                         <AlertTriangle className="w-4 h-4" style={{ color: 'var(--amber)' }} />
@@ -618,13 +654,15 @@ export default function HomePage() {
                         </h3>
                       </div>
                       <div className="space-y-2">
-                        {guideResult.guidance.red_flags.map((flag, i) => (
+                        {(guideResult.guidance.red_flags || []).map((flag, i) => (
                           <div key={i} className="callout callout-amber">
                             <div className="flex items-start justify-between gap-2">
                               <p className="text-sm font-medium" style={{ color: 'var(--text-heading)' }}>{flag.flag}</p>
-                              <span className={`tag ${flag.severity === 'critical' ? 'tag-rose' : 'tag-amber'}`}>{flag.severity}</span>
+                              <span className={`tag ${flag.severity === 'critical' ? 'tag-rose' : 'tag-amber'}`}>{flag.severity || 'warning'}</span>
                             </div>
-                            <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>{flag.explanation}</p>
+                            {flag.explanation && (
+                              <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>{flag.explanation}</p>
+                            )}
                             {flag.mitigation && (
                               <p className="text-xs mt-1" style={{ color: 'var(--emerald)' }}>→ {flag.mitigation}</p>
                             )}
@@ -635,7 +673,7 @@ export default function HomePage() {
                   )}
 
                   {/* When to Hire a Lawyer */}
-                  {guideResult.guidance.when_lawyer_needed.length > 0 && (
+                  {(guideResult.guidance.when_lawyer_needed || []).length > 0 && (
                     <div>
                       <div className="flex items-center gap-2 mb-3">
                         <Shield className="w-4 h-4" style={{ color: 'var(--indigo)' }} />
@@ -644,11 +682,49 @@ export default function HomePage() {
                         </h3>
                       </div>
                       <div className="space-y-2">
-                        {guideResult.guidance.when_lawyer_needed.map((w, i) => (
+                        {(guideResult.guidance.when_lawyer_needed || []).map((w, i) => (
                           <div key={i} className="result-block">
                             <p className="text-sm font-medium" style={{ color: 'var(--text-heading)' }}>{w.scenario}</p>
-                            <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>{w.reason}</p>
-                            <p className="text-xs mt-1" style={{ color: 'var(--amber)' }}>Est. cost: {w.estimated_cost_range}</p>
+                            {w.reason && (
+                              <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>{w.reason}</p>
+                            )}
+                            {w.estimated_cost_range && (
+                              <p className="text-xs mt-1" style={{ color: 'var(--amber)' }}>Est. cost: {w.estimated_cost_range}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Limitation Periods */}
+                  {(guideResult.guidance.limitation_periods || []).length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <Clock className="w-4 h-4" style={{ color: 'var(--amber)' }} />
+                        <h3 className="text-sm font-semibold" style={{ color: 'var(--text-heading)' }}>Limitation Periods</h3>
+                      </div>
+                      <div className="space-y-2">
+                        {(guideResult.guidance.limitation_periods || []).map((lp, i) => (
+                          <div key={i} className="result-block text-xs" style={{ color: 'var(--text-secondary)' }}>
+                            <strong>{lp.act}:</strong> {lp.period} ({lp.from_when})
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Sources / Citations */}
+                  {(guideResult.guidance.sources || []).length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <BookOpen className="w-4 h-4" style={{ color: 'var(--indigo)' }} />
+                        <h3 className="text-sm font-semibold" style={{ color: 'var(--text-heading)' }}>Legal References & Sources</h3>
+                      </div>
+                      <div className="space-y-2">
+                        {(guideResult.guidance.sources || []).map((c, i) => (
+                          <div key={i} className="result-block text-xs" style={{ color: 'var(--text-secondary)' }}>
+                            [{i + 1}] {c.act || c.citation_id} {c.section ? `— §${c.section}` : ''}: {c.description || c.text}
                           </div>
                         ))}
                       </div>
@@ -657,9 +733,11 @@ export default function HomePage() {
 
                   {/* Jurisdiction + Disclaimer */}
                   <div className="callout callout-amber">
-                    <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                      <strong>Jurisdiction:</strong> {guideResult.guidance.jurisdiction}
-                    </p>
+                    {guideResult.guidance.jurisdiction && (
+                      <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                        <strong>Jurisdiction:</strong> {guideResult.guidance.jurisdiction}
+                      </p>
+                    )}
                     <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
                       This is legal information, not legal advice. Consult a qualified advocate for your specific case.
                     </p>

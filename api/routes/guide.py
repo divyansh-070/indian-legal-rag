@@ -68,25 +68,26 @@ async def analyze_situation(request: GuideRequest):
         
         analysis_dict = {}
         if result.situation_analysis:
+            s = result.situation_analysis
             analysis_dict = {
-                "summary": result.situation_analysis.summary,
-                "user_role": result.situation_analysis.user_role,
-                "counterparty_role": result.situation_analysis.counterparty_role,
-                "location": result.situation_analysis.location,
-                "amount_involved": result.situation_analysis.amount_involved,
-                "has_written_contract": result.situation_analysis.has_written_contract,
-                "timeline": result.situation_analysis.timeline,
+                "summary": s.summary or "",
+                "user_role": s.user_role or "",
+                "counterparty_role": s.counterparty_role or "",
+                "location": s.location or "",
+                "amount_involved": s.amount_involved or "",
+                "has_written_contract": bool(s.has_written_contract) if s.has_written_contract is not None else False,
+                "timeline": s.timeline or "",
                 "legal_issues": [
                     {
-                        "issue": li.issue,
-                        "category": li.category,
-                        "applicable_acts": li.applicable_acts,
-                        "key_sections": li.key_sections,
-                        "urgency": li.urgency,
+                        "issue": li.issue or "",
+                        "category": li.category or "",
+                        "applicable_acts": li.applicable_acts or [],
+                        "key_sections": li.key_sections or [],
+                        "urgency": li.urgency or "Medium",
                     }
-                    for li in result.situation_analysis.legal_issues
+                    for li in (s.legal_issues or [])
                 ],
-                "missing_info": result.situation_analysis.missing_info,
+                "missing_info": s.missing_info or [],
             }
         
         if result.status == "needs_clarification" and result.clarification_response:
@@ -97,14 +98,14 @@ async def analyze_situation(request: GuideRequest):
                 questions=[
                     {
                         "id": q.id,
-                        "question": q.question,
-                        "why_needed": q.reason,
-                        "critical": q.priority == "high",
+                        "question": q.question or "",
+                        "why_needed": getattr(q, 'reason', '') or getattr(q, 'why_needed', '') or "",
+                        "critical": getattr(q, 'priority', '') == "high" or bool(getattr(q, 'critical', False)),
                     }
-                    for q in clar.questions
+                    for q in (clar.questions or [])
                 ],
-                can_proceed_without=clar.can_proceed_without,
-                missing_critical_info=clar.missing_critical_info,
+                can_proceed_without=bool(clar.can_proceed_without),
+                missing_critical_info=clar.missing_critical_info or [],
             )
         
         return ClarificationQuestionsResponse(
@@ -133,25 +134,26 @@ async def get_guide(request: GuideRequest):
         
         analysis_dict = {}
         if result.situation_analysis:
+            s = result.situation_analysis
             analysis_dict = {
-                "summary": result.situation_analysis.summary,
-                "user_role": result.situation_analysis.user_role,
-                "counterparty_role": result.situation_analysis.counterparty_role,
-                "location": result.situation_analysis.location,
-                "amount_involved": result.situation_analysis.amount_involved,
-                "has_written_contract": result.situation_analysis.has_written_contract,
-                "timeline": result.situation_analysis.timeline,
+                "summary": s.summary or "",
+                "user_role": s.user_role or "",
+                "counterparty_role": s.counterparty_role or "",
+                "location": s.location or "",
+                "amount_involved": s.amount_involved or "",
+                "has_written_contract": bool(s.has_written_contract) if s.has_written_contract is not None else False,
+                "timeline": s.timeline or "",
                 "legal_issues": [
                     {
-                        "issue": li.issue,
-                        "category": li.category,
-                        "applicable_acts": li.applicable_acts,
-                        "key_sections": li.key_sections,
-                        "urgency": li.urgency,
+                        "issue": li.issue or "",
+                        "category": li.category or "",
+                        "applicable_acts": li.applicable_acts or [],
+                        "key_sections": li.key_sections or [],
+                        "urgency": li.urgency or "Medium",
                     }
-                    for li in result.situation_analysis.legal_issues
+                    for li in (s.legal_issues or [])
                 ],
-                "missing_info": result.situation_analysis.missing_info,
+                "missing_info": s.missing_info or [],
             }
         
         clar_dict = None
@@ -161,66 +163,66 @@ async def get_guide(request: GuideRequest):
                 "questions": [
                     {
                         "id": q.id,
-                        "question": q.question,
-                        "why_needed": q.reason,
-                        "critical": q.priority == "high",
+                        "question": q.question or "",
+                        "why_needed": getattr(q, 'reason', '') or getattr(q, 'why_needed', '') or "",
+                        "critical": getattr(q, 'priority', '') == "high" or bool(getattr(q, 'critical', False)),
                     }
-                    for q in clar.questions
+                    for q in (clar.questions or [])
                 ],
-                "can_proceed_without": clar.can_proceed_without,
-                "missing_critical_info": clar.missing_critical_info,
+                "can_proceed_without": bool(clar.can_proceed_without),
+                "missing_critical_info": clar.missing_critical_info or [],
             }
         
         guidance_dict = None
         if result.guidance:
             g = result.guidance
             guidance_dict = {
-                "situation_summary": g.situation_summary,
-                "applicable_laws": g.applicable_laws,
+                "situation_summary": g.situation_summary or "",
+                "applicable_laws": g.applicable_laws or [],
                 "immediate_steps": [
                     {
-                        "step": s.step,
-                        "reason": s.reason,
+                        "step": s.step or "",
+                        "reason": s.reason or "",
                         "deadline": s.deadline,
-                        "do_it_yourself": s.do_it_yourself,
+                        "do_it_yourself": bool(s.do_it_yourself) if s.do_it_yourself is not None else True,
                     }
-                    for s in g.immediate_steps
+                    for s in (g.immediate_steps or [])
                 ],
                 "legal_options": [
                     {
-                        "name": o.name,
-                        "description": o.description,
-                        "applicable_act": o.applicable_act,
-                        "key_sections": o.key_sections,
-                        "estimated_cost": o.estimated_cost,
-                        "estimated_time": o.estimated_time,
-                        "success_likelihood": o.success_likelihood,
-                        "pros": o.pros,
-                        "cons": o.cons,
-                        "prerequisites": o.prerequisites,
+                        "name": o.name or "",
+                        "description": o.description or "",
+                        "applicable_act": o.applicable_act or "",
+                        "key_sections": o.key_sections or [],
+                        "estimated_cost": o.estimated_cost or "low",
+                        "estimated_time": o.estimated_time or "",
+                        "success_likelihood": o.success_likelihood or "medium",
+                        "pros": o.pros or [],
+                        "cons": o.cons or [],
+                        "prerequisites": o.prerequisites or [],
                     }
-                    for o in g.legal_options
+                    for o in (g.legal_options or [])
                 ],
                 "red_flags": [
                     {
-                        "flag": r.flag,
-                        "severity": r.severity,
-                        "explanation": r.explanation,
-                        "mitigation": r.mitigation,
+                        "flag": r.flag or "",
+                        "severity": r.severity or "medium",
+                        "explanation": r.explanation or "",
+                        "mitigation": r.mitigation or "",
                     }
-                    for r in g.red_flags
+                    for r in (g.red_flags or [])
                 ],
                 "when_lawyer_needed": [
                     {
-                        "scenario": w.scenario,
-                        "reason": w.reason,
-                        "estimated_cost_range": w.estimated_cost_range,
+                        "scenario": w.scenario or "",
+                        "reason": w.reason or "",
+                        "estimated_cost_range": w.estimated_cost_range or "",
                     }
-                    for w in g.when_lawyer_needed
+                    for w in (g.when_lawyer_needed or [])
                 ],
-                "sources": g.sources,
-                "limitation_periods": g.limitation_periods,
-                "jurisdiction": g.jurisdiction,
+                "sources": g.sources or [],
+                "limitation_periods": g.limitation_periods or [],
+                "jurisdiction": g.jurisdiction or "",
             }
         
         return FullGuideResponse(
